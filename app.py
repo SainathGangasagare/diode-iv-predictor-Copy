@@ -9,7 +9,7 @@ st.set_page_config(
     page_title="DiodeLab AI | I–V Predictor",
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # ---------- Theme and styling ----------
@@ -17,40 +17,33 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-.stApp {
-    background: radial-gradient(circle at 8% 2%, rgba(59,130,246,.08), transparent 28%),
-                radial-gradient(circle at 92% 8%, rgba(14,165,233,.07), transparent 30%), #f5f8fc;
-    color: #172b4d;
-}
-.block-container { max-width: 1180px; padding-top: 2rem; padding-bottom: 3rem; }
-[data-testid="stSidebar"] { background: linear-gradient(180deg, #eef5ff 0%, #e7f0fc 100%); border-right: 1px solid #d7e4f3; }
-h1, h2, h3 { color:#102a43; letter-spacing:-0.025em; }
-p, label, .stMarkdown { color:#334e68; }
-.hero { padding:2.25rem 2.4rem; border:1px solid #c9ddf5; border-radius:22px;
-    background:linear-gradient(120deg,#fff 0%,#eaf4ff 58%,#dceeff 100%);
-    box-shadow:0 14px 42px rgba(25,72,130,.09); animation:rise .65s ease-out both; }
-.eyebrow { display:inline-block; padding:.35rem .7rem; border-radius:999px; border:1px solid #bfdbfe;
-    color:#1d4ed8; background:#eff6ff; font-size:.76rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
-.hero h1 { color:#102a43; font-size:clamp(2.2rem,5vw,3.6rem); line-height:1.06; margin:.9rem 0; }
-.gradient-text { background:linear-gradient(90deg,#0369a1,#2563eb,#4f46e5); -webkit-background-clip:text; background-clip:text; color:transparent; }
-.hero p { color:#486581; font-size:1.05rem; max-width:780px; line-height:1.75; }
-.metric-card, .content-card { background:rgba(255,255,255,.96); border:1px solid #d8e5f3; border-radius:16px;
-    padding:1.1rem 1.2rem; box-shadow:0 6px 20px rgba(15,53,95,.045);
-    transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease; }
-.metric-card:hover, .content-card:hover { transform:translateY(-3px); border-color:#93c5fd; box-shadow:0 12px 26px rgba(37,99,235,.10); }
-.metric-label { color:#627d98; font-size:.85rem; }
-.metric-value { color:#102a43; font-size:1.75rem; font-weight:800; margin-top:.25rem; }
-.metric-note { color:#829ab1; font-size:.8rem; margin-top:.2rem; }
-.section-kicker { color:#2563eb; text-transform:uppercase; font-size:.76rem; font-weight:800; letter-spacing:.13em; }
-.small-muted { color:#627d98; font-size:.9rem; }
-div.stButton > button { border-radius:10px; border:1px solid #2563eb; background:linear-gradient(90deg,#2563eb,#0284c7);
-    color:#fff; font-weight:700; padding:.65rem 1rem; transition:transform .2s ease,filter .2s ease; }
-div.stButton > button:hover { filter:brightness(1.06); transform:translateY(-1px); color:#fff; border-color:#1d4ed8; }
-[data-testid="stMetric"] { background:#fff; border:1px solid #d8e5f3; padding:1rem; border-radius:14px; }
-[data-testid="stDataFrame"] { border:1px solid #d8e5f3; border-radius:12px; overflow:hidden; }
-div[data-baseweb="select"] > div, div[data-baseweb="input"] > div { background:#fff; }
+:root { color-scheme: dark; }
+.stApp { background: radial-gradient(ellipse at 50% -18%, rgba(0,153,255,.22), transparent 48%), radial-gradient(circle at 85% 25%, rgba(0,210,255,.08), transparent 28%), #050b18; color:#eaf4ff; }
+header[data-testid="stHeader"] { height: 0.25rem; background: transparent; }
+.block-container { max-width: 1320px; padding-top: .55rem !important; padding-bottom: 2.5rem; }
+[data-testid="stSidebar"] { display:none; }
+h1,h2,h3,h4 { color:#f3f8ff; letter-spacing:-.025em; }
+p, label, .stMarkdown { color:#b9cce3; }
+.hero { position:relative; overflow:hidden; padding:clamp(2rem,5vw,4.5rem); border:1px solid rgba(70,174,255,.35); border-radius:24px; background:radial-gradient(ellipse at 78% 40%,rgba(0,149,255,.22),transparent 42%),linear-gradient(115deg,#0b1830 0%,#0b2445 58%,#071326 100%); box-shadow:0 20px 70px rgba(0,80,180,.16); animation:rise .7s ease-out both; }
+.hero:after { content:' '; position:absolute; width:310px; height:310px; right:-85px; top:-115px; border-radius:50%; border:1px solid rgba(90,195,255,.18); box-shadow:0 0 0 28px rgba(90,195,255,.035),0 0 0 58px rgba(90,195,255,.025); pointer-events:none; }
+.eyebrow { display:inline-block; padding:.4rem .75rem; border-radius:999px; border:1px solid rgba(83,190,255,.4); color:#79d8ff; background:rgba(10,100,180,.15); font-size:.72rem; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
+.hero h1 { color:#f4f9ff; font-size:clamp(2.3rem,5.5vw,4.4rem); line-height:1.03; margin:1rem 0; }
+.gradient-text { background:linear-gradient(90deg,#55d7ff,#4b91ff,#9b8cff); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.hero p { color:#b5cce5; font-size:1.05rem; max-width:780px; line-height:1.8; }
+.metric-card,.content-card { background:linear-gradient(145deg,rgba(15,33,59,.96),rgba(8,20,39,.96)); border:1px solid #203b5d; border-radius:16px; padding:1.1rem 1.2rem; box-shadow:0 8px 24px rgba(0,0,0,.12); transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease; }
+.metric-card:hover,.content-card:hover { transform:translateY(-3px); border-color:#38bdf8; box-shadow:0 12px 30px rgba(0,145,255,.12); }
+.metric-label { color:#9bb5d2; font-size:.85rem; }.metric-value { color:#f2f8ff; font-size:1.75rem; font-weight:800; margin-top:.25rem; }.metric-note { color:#7995b6; font-size:.8rem; margin-top:.2rem; }
+.section-kicker { color:#5bd5ff; text-transform:uppercase; font-size:.76rem; font-weight:800; letter-spacing:.14em; }.small-muted { color:#a8bfd9; font-size:.9rem; }
+div.stButton > button, div[data-testid="stDownloadButton"] button { border-radius:10px; border:1px solid #168de0; background:linear-gradient(100deg,#0878db,#05a6cf); color:#fff !important; font-weight:700; padding:.72rem 1rem; transition:transform .2s ease,filter .2s ease; }
+div.stButton > button p, div[data-testid="stDownloadButton"] button p { color:#fff !important; font-weight:700; }
+div.stButton > button:hover, div[data-testid="stDownloadButton"] button:hover { filter:brightness(1.15); transform:translateY(-2px); color:#fff !important; border-color:#5bd5ff; }
+[data-testid="stMetric"] { background:#0c1c33; border:1px solid #203b5d; padding:1rem; border-radius:14px; }
+[data-testid="stDataFrame"] { border:1px solid #203b5d; border-radius:12px; overflow:hidden; }
+div[data-baseweb="select"] > div, div[data-baseweb="input"] > div { background:#0c1c33; border-color:#315274; color:#eaf4ff; }
+.stSlider [data-baseweb="slider"] div { color:#eaf4ff; }
+[data-testid="stAlert"] { border-radius:12px; }
 @keyframes rise { from {opacity:0; transform:translateY(12px)} to {opacity:1; transform:translateY(0)} }
-hr { border-color:#dbe7f3; }
+hr { border-color:#203b5d; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -102,17 +95,13 @@ def go_to(page):
 def sync_page_from_radio():
     st.session_state.page = st.session_state.navigation_radio
 
-with st.sidebar:
-    st.markdown("## ⚡ DiodeLab AI")
-    st.caption("Semiconductor ML explorer")
-    st.markdown("---")
-    st.radio("NAVIGATION", PAGES, key="navigation_radio", on_change=sync_page_from_radio)
-    st.markdown("---")
-    st.markdown("**PROJECT**")
-    st.caption("1N4004 forward-bias I–V characteristics")
-    st.caption("Machine learning • Regression • Experimental data")
-    st.markdown("---")
-    st.caption("Built with Python + Streamlit")
+# Compact top navigation replaces the crowded sidebar.
+nav_cols = st.columns([1.45, 1, 1.25, 1.25, 1.15])
+with nav_cols[0]:
+    st.markdown("<div style='padding:.55rem 0;color:#eaf4ff;font-weight:800;font-size:1.05rem'>⚡ DiodeLab <span style='color:#54d5ff'>AI</span></div>", unsafe_allow_html=True)
+for col, target, label in zip(nav_cols[1:], PAGES, ["⌂  Home", "⚡  Predictor", "◫  Model comparison", "⌁  Dataset"]):
+    with col:
+        st.button(label, key=f"topnav_{target}", use_container_width=True, on_click=go_to, args=(target,))
 
 page = st.session_state.page
 
@@ -133,8 +122,8 @@ else:
 # ---------- Shared plotting helper ----------
 def draw_iv_curve(show_models=False, selected_model=None, highlight_voltage=None):
     fig, ax = plt.subplots(figsize=(9, 4.8))
-    fig.patch.set_facecolor("#ffffff")
-    ax.set_facecolor("#ffffff")
+    fig.patch.set_facecolor("#081326")
+    ax.set_facecolor("#081326")
     if valid_data:
         ax.scatter(data["v_meas"], data["i_meas"], s=19, alpha=.78, label="Measured data")
     if show_models and models and valid_data:
@@ -149,14 +138,14 @@ def draw_iv_curve(show_models=False, selected_model=None, highlight_voltage=None
                 pass
     if highlight_voltage is not None:
         ax.axvline(highlight_voltage, linestyle="--", linewidth=1.3, alpha=.8, label=f"Input: {highlight_voltage:.3f} V")
-    ax.set_title("1N4004 forward-bias I–V characteristics", color="#102a43", pad=12, fontsize=13)
-    ax.set_xlabel("Measured voltage (V)", color="#486581")
-    ax.set_ylabel("Measured current (A)", color="#486581")
-    ax.tick_params(colors="#cbd5e1")
+    ax.set_title("1N4004 forward-bias I–V characteristics", color="#eaf4ff", pad=12, fontsize=13)
+    ax.set_xlabel("Measured voltage (V)", color="#a9c4df")
+    ax.set_ylabel("Measured current (A)", color="#a9c4df")
+    ax.tick_params(colors="#a9c4df")
     for spine in ax.spines.values():
-        spine.set_color("#cbd5e1")
-    ax.grid(True, alpha=.35, color="#cbd5e1")
-    ax.legend(facecolor="#172235", edgecolor="#334155", labelcolor="#102a43")
+        spine.set_color("#294563")
+    ax.grid(True, alpha=.25, color="#52708e")
+    ax.legend(facecolor="#10223b", edgecolor="#294563", labelcolor="#eaf4ff")
     fig.tight_layout()
     st.pyplot(fig, use_container_width=True)
     plt.close(fig)
@@ -299,17 +288,17 @@ elif st.session_state.page == "Dataset Explorer":
         st.download_button("Download filtered CSV", filtered.to_csv(index=False).encode("utf-8"), file_name="diode_iv_filtered.csv", mime="text/csv")
         st.markdown("### Filtered I–V curve")
         fig, ax = plt.subplots(figsize=(9, 4.5))
-        fig.patch.set_facecolor("#ffffff")
-        ax.set_facecolor("#ffffff")
+        fig.patch.set_facecolor("#081326")
+        ax.set_facecolor("#081326")
         ax.scatter(filtered["v_meas"], filtered["i_meas"], s=24, color="#2563eb", label="Filtered measurements")
-        ax.set_xlabel("Measured voltage (V)", color="#486581")
-        ax.set_ylabel("Measured current (A)", color="#486581")
-        ax.set_title("Measured diode response", color="#102a43")
-        ax.tick_params(colors="#cbd5e1")
+        ax.set_xlabel("Measured voltage (V)", color="#a9c4df")
+        ax.set_ylabel("Measured current (A)", color="#a9c4df")
+        ax.set_title("Measured diode response", color="#eaf4ff")
+        ax.tick_params(colors="#a9c4df")
         for spine in ax.spines.values():
-            spine.set_color("#cbd5e1")
-        ax.grid(True, alpha=.35, color="#cbd5e1")
-        ax.legend(facecolor="#172235", edgecolor="#334155", labelcolor="#102a43")
+            spine.set_color("#294563")
+        ax.grid(True, alpha=.25, color="#52708e")
+        ax.legend(facecolor="#10223b", edgecolor="#294563", labelcolor="#eaf4ff")
         fig.tight_layout()
         st.pyplot(fig, use_container_width=True)
         plt.close(fig)
