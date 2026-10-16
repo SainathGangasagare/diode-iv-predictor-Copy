@@ -18,59 +18,39 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 .stApp {
-    background:
-      radial-gradient(circle at 8% 2%, rgba(56, 189, 248, .12), transparent 28%),
-      radial-gradient(circle at 92% 10%, rgba(139, 92, 246, .14), transparent 30%),
-      #080d18;
-    color: #edf2ff;
+    background: radial-gradient(circle at 8% 2%, rgba(59,130,246,.08), transparent 28%),
+                radial-gradient(circle at 92% 8%, rgba(14,165,233,.07), transparent 30%), #f5f8fc;
+    color: #172b4d;
 }
 .block-container { max-width: 1180px; padding-top: 2rem; padding-bottom: 3rem; }
-[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #101a2e 0%, #0b1120 100%);
-    border-right: 1px solid rgba(148,163,184,.16);
-}
-h1, h2, h3 { letter-spacing: -0.035em; }
-.hero {
-    padding: 2.2rem 2.3rem;
-    border: 1px solid rgba(125, 211, 252, .25);
-    border-radius: 24px;
-    background: linear-gradient(120deg, rgba(14,165,233,.20), rgba(99,102,241,.18) 55%, rgba(139,92,246,.16));
-    box-shadow: 0 18px 70px rgba(0,0,0,.22);
-    animation: rise .7s ease-out both;
-}
-.eyebrow {
-    display:inline-block; padding: .35rem .7rem; border-radius: 999px;
-    border:1px solid rgba(125,211,252,.35); color:#a5e6ff;
-    background:rgba(14,165,233,.10); font-size:.78rem; font-weight:700;
-    letter-spacing:.08em; text-transform:uppercase;
-}
-.hero h1 { font-size: clamp(2.2rem, 5vw, 3.7rem); line-height:1.05; margin:.9rem 0; }
-.gradient-text {
-    background: linear-gradient(90deg, #67e8f9, #a5b4fc, #c4b5fd);
-    -webkit-background-clip:text; background-clip:text; color:transparent;
-}
-.hero p { color:#cbd5e1; font-size:1.08rem; max-width:760px; line-height:1.75; }
-.metric-card, .content-card {
-    background: rgba(17, 27, 46, .78);
-    border: 1px solid rgba(148,163,184,.17);
-    border-radius: 18px; padding: 1.1rem 1.2rem;
-    transition: transform .22s ease, border-color .22s ease;
-}
-.metric-card:hover, .content-card:hover { transform: translateY(-3px); border-color:rgba(103,232,249,.45); }
-.metric-label { color:#9fb0c9; font-size:.85rem; }
-.metric-value { color:#f8fafc; font-size:1.75rem; font-weight:800; margin-top:.25rem; }
-.metric-note { color:#94a3b8; font-size:.8rem; margin-top:.2rem; }
-.section-kicker { color:#67e8f9; text-transform:uppercase; font-size:.76rem; font-weight:800; letter-spacing:.13em; }
-.small-muted { color:#9caec6; font-size:.9rem; }
-div.stButton > button {
-    border-radius: 11px; border: 1px solid rgba(125,211,252,.35);
-    background: linear-gradient(90deg, #0284c7, #4f46e5); color:white;
-    font-weight:700; padding:.65rem 1rem; transition: transform .2s ease, filter .2s ease;
-}
-div.stButton > button:hover { filter:brightness(1.12); transform:translateY(-1px); color:white; }
-@keyframes rise { from {opacity:0; transform:translateY(14px)} to {opacity:1; transform:translateY(0)} }
-hr { border-color:rgba(148,163,184,.18); }
-[data-testid="stDataFrame"] { border:1px solid rgba(148,163,184,.2); border-radius:12px; overflow:hidden; }
+[data-testid="stSidebar"] { background: linear-gradient(180deg, #eef5ff 0%, #e7f0fc 100%); border-right: 1px solid #d7e4f3; }
+h1, h2, h3 { color:#102a43; letter-spacing:-0.025em; }
+p, label, .stMarkdown { color:#334e68; }
+.hero { padding:2.25rem 2.4rem; border:1px solid #c9ddf5; border-radius:22px;
+    background:linear-gradient(120deg,#fff 0%,#eaf4ff 58%,#dceeff 100%);
+    box-shadow:0 14px 42px rgba(25,72,130,.09); animation:rise .65s ease-out both; }
+.eyebrow { display:inline-block; padding:.35rem .7rem; border-radius:999px; border:1px solid #bfdbfe;
+    color:#1d4ed8; background:#eff6ff; font-size:.76rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+.hero h1 { color:#102a43; font-size:clamp(2.2rem,5vw,3.6rem); line-height:1.06; margin:.9rem 0; }
+.gradient-text { background:linear-gradient(90deg,#0369a1,#2563eb,#4f46e5); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.hero p { color:#486581; font-size:1.05rem; max-width:780px; line-height:1.75; }
+.metric-card, .content-card { background:rgba(255,255,255,.96); border:1px solid #d8e5f3; border-radius:16px;
+    padding:1.1rem 1.2rem; box-shadow:0 6px 20px rgba(15,53,95,.045);
+    transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease; }
+.metric-card:hover, .content-card:hover { transform:translateY(-3px); border-color:#93c5fd; box-shadow:0 12px 26px rgba(37,99,235,.10); }
+.metric-label { color:#627d98; font-size:.85rem; }
+.metric-value { color:#102a43; font-size:1.75rem; font-weight:800; margin-top:.25rem; }
+.metric-note { color:#829ab1; font-size:.8rem; margin-top:.2rem; }
+.section-kicker { color:#2563eb; text-transform:uppercase; font-size:.76rem; font-weight:800; letter-spacing:.13em; }
+.small-muted { color:#627d98; font-size:.9rem; }
+div.stButton > button { border-radius:10px; border:1px solid #2563eb; background:linear-gradient(90deg,#2563eb,#0284c7);
+    color:#fff; font-weight:700; padding:.65rem 1rem; transition:transform .2s ease,filter .2s ease; }
+div.stButton > button:hover { filter:brightness(1.06); transform:translateY(-1px); color:#fff; border-color:#1d4ed8; }
+[data-testid="stMetric"] { background:#fff; border:1px solid #d8e5f3; padding:1rem; border-radius:14px; }
+[data-testid="stDataFrame"] { border:1px solid #d8e5f3; border-radius:12px; overflow:hidden; }
+div[data-baseweb="select"] > div, div[data-baseweb="input"] > div { background:#fff; }
+@keyframes rise { from {opacity:0; transform:translateY(12px)} to {opacity:1; transform:translateY(0)} }
+hr { border-color:#dbe7f3; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -107,29 +87,34 @@ def load_data():
 models, model_errors = load_models()
 data = load_data()
 
+PAGES = ["Home", "Predictor", "Model Comparison", "Dataset Explorer"]
+
 if "page" not in st.session_state:
     st.session_state.page = "Home"
+if "navigation_radio" not in st.session_state:
+    st.session_state.navigation_radio = st.session_state.page
 
 def go_to(page):
+    # Streamlit runs this callback before redrawing the page.
     st.session_state.page = page
+    st.session_state.navigation_radio = page
+
+def sync_page_from_radio():
+    st.session_state.page = st.session_state.navigation_radio
 
 with st.sidebar:
     st.markdown("## ⚡ DiodeLab AI")
     st.caption("Semiconductor ML explorer")
     st.markdown("---")
-    page = st.radio(
-        "NAVIGATION",
-        ["Home", "Predictor", "Model Comparison", "Dataset Explorer"],
-        index=["Home", "Predictor", "Model Comparison", "Dataset Explorer"].index(st.session_state.page),
-        key="navigation_radio",
-    )
-    st.session_state.page = page
+    st.radio("NAVIGATION", PAGES, key="navigation_radio", on_change=sync_page_from_radio)
     st.markdown("---")
     st.markdown("**PROJECT**")
     st.caption("1N4004 forward-bias I–V characteristics")
     st.caption("Machine learning • Regression • Experimental data")
     st.markdown("---")
     st.caption("Built with Python + Streamlit")
+
+page = st.session_state.page
 
 if model_errors:
     with st.expander("Asset loading notes", expanded=False):
@@ -148,8 +133,8 @@ else:
 # ---------- Shared plotting helper ----------
 def draw_iv_curve(show_models=False, selected_model=None, highlight_voltage=None):
     fig, ax = plt.subplots(figsize=(9, 4.8))
-    fig.patch.set_facecolor("#101827")
-    ax.set_facecolor("#101827")
+    fig.patch.set_facecolor("#ffffff")
+    ax.set_facecolor("#ffffff")
     if valid_data:
         ax.scatter(data["v_meas"], data["i_meas"], s=19, alpha=.78, label="Measured data")
     if show_models and models and valid_data:
@@ -164,14 +149,14 @@ def draw_iv_curve(show_models=False, selected_model=None, highlight_voltage=None
                 pass
     if highlight_voltage is not None:
         ax.axvline(highlight_voltage, linestyle="--", linewidth=1.3, alpha=.8, label=f"Input: {highlight_voltage:.3f} V")
-    ax.set_title("1N4004 forward-bias I–V characteristics", color="#e5edff", pad=12, fontsize=13)
-    ax.set_xlabel("Measured voltage (V)", color="#cbd5e1")
-    ax.set_ylabel("Measured current (A)", color="#cbd5e1")
+    ax.set_title("1N4004 forward-bias I–V characteristics", color="#102a43", pad=12, fontsize=13)
+    ax.set_xlabel("Measured voltage (V)", color="#486581")
+    ax.set_ylabel("Measured current (A)", color="#486581")
     ax.tick_params(colors="#cbd5e1")
     for spine in ax.spines.values():
-        spine.set_color("#475569")
-    ax.grid(True, alpha=.18, color="#94a3b8")
-    ax.legend(facecolor="#172235", edgecolor="#334155", labelcolor="#e5edff")
+        spine.set_color("#cbd5e1")
+    ax.grid(True, alpha=.35, color="#cbd5e1")
+    ax.legend(facecolor="#172235", edgecolor="#334155", labelcolor="#102a43")
     fig.tight_layout()
     st.pyplot(fig, use_container_width=True)
     plt.close(fig)
@@ -201,19 +186,16 @@ if st.session_state.page == "Home":
     a, b, c = st.columns(3)
     with a:
         st.markdown('<div class="content-card"><h3>⚡ Predictor</h3><p class="small-muted">Enter a voltage and estimate forward current using a saved model.</p></div>', unsafe_allow_html=True)
-        if st.button("Open predictor →", key="home_predictor", use_container_width=True):
-            go_to("Predictor")
-            st.rerun()
+        st.button("Open predictor →", key="home_predictor", use_container_width=True,
+                  on_click=go_to, args=("Predictor",))
     with b:
         st.markdown('<div class="content-card"><h3>📊 Model comparison</h3><p class="small-muted">Review held-out test metrics and compare prediction curves.</p></div>', unsafe_allow_html=True)
-        if st.button("Compare models →", key="home_compare", use_container_width=True):
-            go_to("Model Comparison")
-            st.rerun()
+        st.button("Compare models →", key="home_compare", use_container_width=True,
+                  on_click=go_to, args=("Model Comparison",))
     with c:
         st.markdown('<div class="content-card"><h3>🧪 Dataset explorer</h3><p class="small-muted">Filter measurements, inspect rows, and download the cleaned data.</p></div>', unsafe_allow_html=True)
-        if st.button("Explore data →", key="home_data", use_container_width=True):
-            go_to("Dataset Explorer")
-            st.rerun()
+        st.button("Explore data →", key="home_data", use_container_width=True,
+                  on_click=go_to, args=("Dataset Explorer",))
     st.write("")
     st.markdown("### Measured diode response")
     if valid_data:
@@ -249,6 +231,24 @@ elif st.session_state.page == "Predictor":
                 st.warning(f'{result["voltage"]:.5f} V is outside the measured range ({vmin:.5f}–{vmax:.5f} V). Treat this prediction as an extrapolation and use caution.')
             else:
                 st.success("Input voltage is within the measured voltage range. This is still a model estimate, not a guaranteed physical measurement.")
+
+            with st.expander("How should I interpret this prediction?"):
+                st.markdown(
+                    f"- **Input voltage:** `{result['voltage']:.5f} V`\\n"
+                    f"- **Estimated current:** `{result['current']:.6f} A` "
+                    f"(`{result['current'] * 1000:.3f} mA`)\\n"
+                    f"- **Model used:** `{result['model']}`"
+                )
+                st.write(
+                    "The model learned a relationship between voltage and current from the recorded 1N4004 measurements. "
+                    "It estimates current from that learned pattern; it does not measure the diode directly. "
+                    "Results can differ for another diode, temperature, or measurement setup."
+                )
+                if valid_data and not (vmin <= result["voltage"] <= vmax):
+                    st.warning("This input is outside the measured range, so the model is extrapolating. Treat the estimate with extra caution.")
+                else:
+                    st.info("This voltage is inside the measured range. The estimate is still not a guarantee of the physical current.")
+
             if valid_data:
                 st.markdown("### Model against measured data")
                 draw_iv_curve(show_models=True, selected_model=result["model"], highlight_voltage=result["voltage"])
@@ -299,17 +299,17 @@ elif st.session_state.page == "Dataset Explorer":
         st.download_button("Download filtered CSV", filtered.to_csv(index=False).encode("utf-8"), file_name="diode_iv_filtered.csv", mime="text/csv")
         st.markdown("### Filtered I–V curve")
         fig, ax = plt.subplots(figsize=(9, 4.5))
-        fig.patch.set_facecolor("#101827")
-        ax.set_facecolor("#101827")
-        ax.scatter(filtered["v_meas"], filtered["i_meas"], s=24, color="#67e8f9", label="Filtered measurements")
-        ax.set_xlabel("Measured voltage (V)", color="#cbd5e1")
-        ax.set_ylabel("Measured current (A)", color="#cbd5e1")
-        ax.set_title("Measured diode response", color="#e5edff")
+        fig.patch.set_facecolor("#ffffff")
+        ax.set_facecolor("#ffffff")
+        ax.scatter(filtered["v_meas"], filtered["i_meas"], s=24, color="#2563eb", label="Filtered measurements")
+        ax.set_xlabel("Measured voltage (V)", color="#486581")
+        ax.set_ylabel("Measured current (A)", color="#486581")
+        ax.set_title("Measured diode response", color="#102a43")
         ax.tick_params(colors="#cbd5e1")
         for spine in ax.spines.values():
-            spine.set_color("#475569")
-        ax.grid(True, alpha=.18)
-        ax.legend(facecolor="#172235", edgecolor="#334155", labelcolor="#e5edff")
+            spine.set_color("#cbd5e1")
+        ax.grid(True, alpha=.35, color="#cbd5e1")
+        ax.legend(facecolor="#172235", edgecolor="#334155", labelcolor="#102a43")
         fig.tight_layout()
         st.pyplot(fig, use_container_width=True)
         plt.close(fig)
