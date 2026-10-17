@@ -199,57 +199,173 @@ if st.session_state.page == "Home":
         st.error("The dataset could not be loaded. Check that diode_iv_data.csv is in the repository root.")
 
 # ---------- PREDICTOR ----------
+
 elif st.session_state.page == "Predictor":
-    st.markdown('<div class="section-kicker">Interactive inference</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-kicker">Interactive inference</div>',
+        unsafe_allow_html=True,
+    )
     st.title("Diode current predictor")
-    st.write("Choose a trained model and enter a forward voltage. Predictions outside the measured voltage range are flagged because extrapolation may be unreliable.")
+    st.write(
+        "Choose a trained model and enter a voltage. "
+        "Predictions outside the measured voltage range may be unreliable."
+    )
+
     if not models:
-        st.error("No saved models loaded. Confirm the model .joblib files are in the repository root.")
+        st.error(
+            "No saved models loaded. Confirm the model .joblib files "
+            "are in the repository."
+        )
     else:
         model_name = st.selectbox("Choose a model", list(models.keys()))
+
         safe_min = max(0.0, vmin)
-        voltage = st.number_input("Measured voltage (V)", min_value=-0.1, max_value=max(1.5, vmax + 0.5), value=float(min(max(0.70, safe_min), vmax)), step=0.005, format="%.5f")
+        voltage = st.number_input(
+            "Measured voltage (V)",
+            min_value=-0.1,
+            max_value=max(1.5, vmax + 0.5),
+            value=float(min(max(0.70, safe_min), vmax)),
+            step=0.005,
+            format="%.5f",
+        )
+
+       
+        if model_name == "Silicon SVR":
+            device_options = [
+                "MBR4035",
+                "1N4004",
+                "Generic silicon",
+            ]
+        elif model_name == "SiC SVR":
+            device_options = [
+                "FFSH3065B",
+                "FFSH3065B-F085",
+                "Other SiC device",
+            ]
+        else:
+            device_options = [
+                "1N4004",
+                "Generic silicon",
+                "Silicon carbide",
+                "GaN Schottky",
+            ]
+
+        device = st.selectbox("Device", device_options)
+
+        temperature = st.number_input(
+            "Temperature (K)",
+            min_value=1.0,
+            max_value=500.0,
+            value=293.0,
+            step=1.0,
+        )
+
+        
         if st.button("Predict current", key="predict_button"):
             try:
-                current = float(np.asarray(models[model_name].predict(np.array([[voltage]]))).reshape(-1)[0])
-                st.session_state.last_prediction = {"model": model_name, "voltage": voltage, "current": current}
+                if model_name in ["Silicon SVR", "SiC SVR"]:
+                    if model_name == "Silicon SVR":
+                        device_value = {
+                            "MBR4035": "MBR4035",
+                            "1N4004": "1N4004",
+                            "Generic silicon": "MBR4035",
+                        }[device]
+                    else:
+                        device_value = {
+                            "FFSH3065B": "FFSH3065B",
+                            "FFSH3065B-F085": "FFSH3065B-F085",
+                            "Other SiC device": "FFSH3065B",
+                        }[device]
+
+                    model_input = pd.DataFrame([
+                        {
+                            "device": device_value,
+                            "voltage_V": voltage,
+                            "temperature_K": temperature,
+                        }
+                    ])
+
+                    log_current = float(
+                        models[model_name].predict(model_input)[0]
+                    )
+                    current = 10 ** log_current
+
+                else:
+                    current = float(
+                        np.asarray(
+                            models[model_name].predict(
+                                np.array([[voltage]])
+                            )
+                        ).reshape(-1)[0]
+                    )
+
+                st.session_state.last_prediction = {
+                    "model": model_name,
+                    "voltage": voltage,
+                    "current": current,
+                }
+
             except Exception as exc:
                 st.error(f"Prediction failed: {exc}")
+
         result = st.session_state.get("last_prediction")
+
         if result:
             st.markdown("### Prediction result")
+
             m1, m2, m3 = st.columns(3)
-            m1.metric("Predicted current", f'{result["current"]:.6f} A')
-            m2.metric("Equivalent current", f'{result["current"] * 1000:.3f} mA')
+            m1.metric(
+                "Predicted current",
+                f'{result["current"]:.6g} A',
+            )
+            m2.metric(
+                "Equivalent current",
+                f'{result["current"] * 1000:.6g} mA',
+            )
             m3.metric("Model", result["model"])
-            if valid_data and not (vmin <= result["voltage"] <= vmax):
-                st.warning(f'{result["voltage"]:.5f} V is outside the measured range ({vmin:.5f}–{vmax:.5f} V). Treat this prediction as an extrapolation and use caution.')
+
+            if valid_data and not (
+                vmin <= result["voltage"] <= vmax
+            ):
+                st.warning(
+                    f'{result["voltage"]:.5f} V is outside the '
+                    f'measured range ({vmin:.5f}–{vmax:.5f} V). '
+                    "Treat this prediction as an extrapolation."
+                )
             else:
-                st.success("Input voltage is within the measured voltage range. This is still a model estimate, not a guaranteed physical measurement.")
+                st.info(
+                    "This is a model estimate, not a guaranteed "
+                    "physical measurement."
+                )
 
             with st.expander("How should I interpret this prediction?"):
                 st.markdown(
-                    f"- **Input voltage:** `{result['voltage']:.5f} V`\\n"
-                    f"- **Estimated current:** `{result['current']:.6f} A` "
-                    f"(`{result['current'] * 1000:.3f} mA`)\\n"
-                    f"- **Model used:** `{result['model']}`"
+                    f'- **Input voltage:** `{result["voltage"]:.5f} V`\n'
+                    f'- **Estimated current:** `{result["current"]:.6g} A` '
+                    f'(`{result["current"] * 1000:.6g} mA`)\n'
+                    f'- **Model used:** `{result["model"]}`'
                 )
+
                 st.write(
-                    "The model learned a relationship between voltage and current from the recorded 1N4004 measurements. "
-                    "It estimates current from that learned pattern; it does not measure the diode directly. "
-                    "Results can differ for another diode, temperature, or measurement setup."
+                    "The original models were trained on 1N4004 "
+                    "forward-bias measurements. The newer SVR models "
+                    "use device, voltage, and temperature features. "
+                    "Predictions may be inaccurate for unsupported "
+                    "devices or conditions outside their training data."
                 )
-                if valid_data and not (vmin <= result["voltage"] <= vmax):
-                    st.warning("This input is outside the measured range, so the model is extrapolating. Treat the estimate with extra caution.")
-                else:
-                    st.info("This voltage is inside the measured range. The estimate is still not a guarantee of the physical current.")
 
             if valid_data:
                 st.markdown("### Model against measured data")
-                draw_iv_curve(show_models=True, selected_model=result["model"], highlight_voltage=result["voltage"])
+                draw_iv_curve(
+                    show_models=True,
+                    selected_model=result["model"],
+                    highlight_voltage=result["voltage"],
+                )
+
         elif valid_data:
             st.markdown("### Measured diode I–V curve")
             draw_iv_curve()
+
 
 # ---------- MODEL COMPARISON ----------
 elif st.session_state.page == "Model Comparison":
