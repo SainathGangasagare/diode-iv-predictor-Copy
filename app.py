@@ -52,10 +52,14 @@ hr { border-color:#203b5d; }
 def load_models():
     loaded = {}
     errors = []
-    for label, filename in [
-        ("Random Forest", "random_forest_model.joblib"),
-        ("Tuned SVR", "tuned_svr_model.joblib"),
-    ]:
+    
+for label, filename in [
+    ("Random Forest", "random_forest_model.joblib"),
+    ("Tuned SVR", "tuned_svr_model.joblib"),
+    ("Silicon SVR", "trained_models/silicon_svr.joblib"),
+    ("SiC SVR", "trained_models/silicon_carbide_svr.joblib"),
+]:
+
         if os.path.exists(filename):
             try:
                 loaded[label] = joblib.load(filename)
