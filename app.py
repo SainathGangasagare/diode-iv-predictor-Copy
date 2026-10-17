@@ -48,18 +48,18 @@ hr { border-color:#203b5d; }
 """, unsafe_allow_html=True)
 
 # ---------- Load project assets ----------
+
 @st.cache_resource
 def load_models():
     loaded = {}
     errors = []
-    
-for label, filename in [
-    ("Random Forest", "random_forest_model.joblib"),
-    ("Tuned SVR", "tuned_svr_model.joblib"),
-    ("Silicon SVR", "trained_models/silicon_svr.joblib"),
-    ("SiC SVR", "trained_models/silicon_carbide_svr.joblib"),
-]:
 
+    for label, filename in [
+        ("Random Forest", "random_forest_model.joblib"),
+        ("Tuned SVR", "tuned_svr_model.joblib"),
+        ("Silicon SVR", "trained_models/silicon_svr.joblib"),
+        ("SiC SVR", "trained_models/silicon_carbide_svr.joblib"),
+    ]:
         if os.path.exists(filename):
             try:
                 loaded[label] = joblib.load(filename)
@@ -67,7 +67,9 @@ for label, filename in [
                 errors.append(f"{filename}: {exc}")
         else:
             errors.append(f"Missing file: {filename}")
+
     return loaded, errors
+
 
 @st.cache_data
 def load_data():
