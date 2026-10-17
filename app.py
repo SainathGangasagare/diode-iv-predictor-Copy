@@ -230,17 +230,25 @@ elif st.session_state.page == "Predictor":
         )
 
        
+        
         if model_name == "Silicon SVR":
             device_options = [
+                "1N11877R",
+                "1N1190",
+                "1N3913",
+                "45L120",
+                "BYX661000",
+                "BZW12360",
+                "BZW1336",
+                "BZW1347",
                 "MBR4035",
-                "1N4004",
-                "Generic silicon",
             ]
         elif model_name == "SiC SVR":
             device_options = [
+                "C6D20065A",
                 "FFSH3065B",
                 "FFSH3065B-F085",
-                "Other SiC device",
+                "STPSC12065DY",
             ]
         else:
             device_options = [
@@ -252,6 +260,7 @@ elif st.session_state.page == "Predictor":
 
         device = st.selectbox("Device", device_options)
 
+
         temperature = st.number_input(
             "Temperature (K)",
             min_value=1.0,
@@ -259,24 +268,29 @@ elif st.session_state.page == "Predictor":
             value=293.0,
             step=1.0,
         )
+        
+        if model_name in ["Silicon SVR", "SiC SVR"]:
+            if not 77.0 <= temperature <= 293.0:
+                st.warning(
+                    "The SVR models were trained on data from "
+                    "77 K to 293 K. Predictions outside this "
+                    "temperature range may be unreliable."
+                )
 
+
+        
         
         if st.button("Predict current", key="predict_button"):
             try:
                 if model_name in ["Silicon SVR", "SiC SVR"]:
-                    if model_name == "Silicon SVR":
-                        device_value = {
-                            "MBR4035": "MBR4035",
-                            "1N4004": "1N4004",
-                            "Generic silicon": "MBR4035",
-                        }[device]
-                    else:
-                        device_value = {
-                            "FFSH3065B": "FFSH3065B",
-                            "FFSH3065B-F085": "FFSH3065B-F085",
-                            "Other SiC device": "FFSH3065B",
-                        }[device]
+                    if not 77.0 <= temperature <= 293.0:
+                        st.error(
+                            "Temperature must be between 77 K and "
+                            "293 K for these models."
+                        )
+                        st.stop()
 
+                    device_value = device
                     model_input = pd.DataFrame([
                         {
                             "device": device_value,
@@ -307,6 +321,7 @@ elif st.session_state.page == "Predictor":
 
             except Exception as exc:
                 st.error(f"Prediction failed: {exc}")
+
 
         result = st.session_state.get("last_prediction")
 
