@@ -43,3 +43,24 @@
 The original downloaded ZIP is retained separately from the processed CSV. Each temperature sweep is stored as an independent observation. Missing voltage/current pairs are excluded independently for each temperature. Device technology labels are taken from the source metadata; unspecified values remain unspecified.
 
 This dataset has not yet been used to retrain the project's existing machine-learning models.
+
+
+
+## GaN Schottky diode measurements
+
+- **File:** `gan_schottky_measurements.csv`
+- **Device:** Au/Ni/n-GaN Schottky diode
+- **Material:** Gallium nitride (GaN)
+- **Measurement rows:** 5,189
+- **Temperature range:** 40–400 K, across 19 temperatures
+- **Voltage column:** `voltage_V` (V)
+- **Current column:** `current_A` (A)
+- **Temperature column:** `temperature_K` (K)
+- **Bias information:** Forward and reverse regions are identified in `Bias_Region`.
+- **Evidence type:** Experimental measurements
+
+**Source and provenance:** The dataset README attributes the experimental I–V series to Doğan and Elagöz, *Physica E* 63, 186–192 (2014), DOI: [10.1016/j.physe.2014.04.019](https://doi.org/10.1016/j.physe.2014.04.019). The reproducibility package also cites Torun and Doğan (2021), DOI: [10.1016/j.spmi.2021.107062](https://doi.org/10.1016/j.spmi.2021.107062).
+
+**Processing notes:** The CSV preserves the original curve identifiers, source-file labels, bias-region labels, and temperature values, alongside standardized columns. The measurements represent one specific device across multiple temperatures, not 5,189 separate devices. Consult the source repository's license and citation instructions before redistributing the data.
+
+This dataset has not yet been used to train or validate the project's existing prediction models.
