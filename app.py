@@ -312,11 +312,11 @@ elif st.session_state.page == "Predictor":
         if st.button("Predict current", key="predict_button"):
             try:
                 if model_name in ["Silicon SVR", "SiC SVR"]:
-    device_data = training_data[
-        (training_data["device"] == device)
-        & (training_data["temperature_K"] == temperature)
-        & (training_data["current_A"] > 0)
-    ]
+                    device_data = training_data[
+                        (training_data["device"] == device)
+                        & (training_data["temperature_K"] == temperature)
+                        & (training_data["current_A"] > 0)
+                    ]
 
     if device_data.empty:
         st.error(
