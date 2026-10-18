@@ -310,51 +310,65 @@ elif st.session_state.page == "Predictor":
         
         
         
+        
         if st.button("Predict current", key="predict_button"):
+            # Clear the previous result before attempting a new prediction.
+            st.session_state.pop("last_prediction", None)
+
             try:
                 if model_name in ["Silicon SVR", "SiC SVR"]:
-                    device_data = training_data[
-                        (training_data["device"] == device)
-                        & (training_data["temperature_K"] == temperature)
-                        & (training_data["current_A"] > 0)
-                    ]
-
-                    if device_data.empty:
-                        st.error(
-                            "No measured data is available for this diode "
-                            "at the selected temperature."
-                        )
+                    if training_data.empty:
+                        st.error("The training dataset could not be loaded.")
                     else:
-                        min_voltage = device_data["voltage_V"].min()
-                        max_voltage = device_data["voltage_V"].max()
+                        device_data = training_data[
+                            (training_data["device"] == device)
+                            & (training_data["temperature_K"] == temperature)
+                            & (training_data["current_A"] > 0)
+                        ]
 
-                        if not min_voltage <= voltage <= max_voltage:
+                        if device_data.empty:
                             st.error(
-                                f"Voltage is outside the measured range for {device} "
-                                f"at {temperature:g} K. Allowed range: "
-                                f"{min_voltage:.4f} V to {max_voltage:.4f} V."
+                                f"No measured data is available for {device} "
+                                f"at exactly {temperature:g} K. "
+                                "Choose a temperature with measured data."
                             )
                         else:
-                            model_input = pd.DataFrame([
-                                {
+                            min_voltage = float(
+                                device_data["voltage_V"].min()
+                            )
+                            max_voltage = float(
+                                device_data["voltage_V"].max()
+                            )
+
+                            if not min_voltage <= voltage <= max_voltage:
+                                st.error(
+                                    f"Voltage is outside the measured range "
+                                    f"for {device} at {temperature:g} K. "
+                                    f"Allowed range: {min_voltage:.4f} V "
+                                    f"to {max_voltage:.4f} V."
+                                )
+                            else:
+                                model_input = pd.DataFrame([{
                                     "device": device,
                                     "voltage_V": voltage,
                                     "temperature_K": temperature,
+                                }])
+
+                                log_current = float(
+                                    models[model_name].predict(model_input)[0]
+                                )
+                                current = 10 ** log_current
+
+                                st.session_state.last_prediction = {
+                                    "model": model_name,
+                                    "device": device,
+                                    "voltage": voltage,
+                                    "temperature": temperature,
+                                    "current": current,
                                 }
-                            ])
-
-                            log_current = float(
-                                models[model_name].predict(model_input)[0]
-                            )
-                            current = 10 ** log_current
-
-                            st.session_state.last_prediction = {
-                                "model": model_name,
-                                "voltage": voltage,
-                                "current": current,
-                            }
 
                 else:
+                    # Original models use voltage as their only input.
                     current = float(
                         np.asarray(
                             models[model_name].predict(
@@ -363,17 +377,31 @@ elif st.session_state.page == "Predictor":
                         ).reshape(-1)[0]
                     )
 
-                    st.session_state.last_prediction = {
-                        "model": model_name,
-                        "voltage": voltage,
-                        "current": current,
-                    }
+                    if not np.isfinite(current):
+                        st.error("The model returned a non-finite prediction.")
+                    else:
+                        st.session_state.last_prediction = {
+                            "model": model_name,
+                            "device": device,
+                            "voltage": voltage,
+                            "temperature": temperature,
+                            "current": current,
+                        }
 
-            
             except Exception as exc:
+                st.session_state.pop("last_prediction", None)
                 st.error(f"Prediction failed: {exc}")
 
+        # Show a result only when it matches the current inputs.
         result = st.session_state.get("last_prediction")
+
+        if result and (
+            result["model"] != model_name
+            or result["device"] != device
+            or result["voltage"] != voltage
+            or result["temperature"] != temperature
+        ):
+            result = None
 
         if result:
             st.markdown("### Prediction result")
@@ -389,12 +417,20 @@ elif st.session_state.page == "Predictor":
             )
             m3.metric("Model", result["model"])
 
-            if valid_data and not (
+            if result["model"] in ["Silicon SVR", "SiC SVR"]:
+                st.info(
+                    f"Estimate for {result['device']} at "
+                    f"{result['temperature']:g} K. "
+                    "The voltage is within the measured range for this "
+                    "device and temperature, but the estimate is not "
+                    "a guaranteed physical measurement."
+                )
+            elif valid_data and not (
                 vmin <= result["voltage"] <= vmax
             ):
                 st.warning(
-                    f'{result["voltage"]:.5f} V is outside the '
-                    f'measured range ({vmin:.5f}–{vmax:.5f} V). '
+                    f'{result["voltage"]:.5f} V is outside the original '
+                    f"1N4004 measured range ({vmin:.5f}–{vmax:.5f} V). "
                     "Treat this prediction as an extrapolation."
                 )
             else:
@@ -404,32 +440,30 @@ elif st.session_state.page == "Predictor":
                 )
 
             with st.expander("How should I interpret this prediction?"):
-                st.markdown(
-                    f'- **Input voltage:** `{result["voltage"]:.5f} V`\n'
-                    f'- **Estimated current:** `{result["current"]:.6g} A` '
-                    f'(`{result["current"] * 1000:.6g} mA`)\n'
-                    f'- **Model used:** `{result["model"]}`'
-                )
-
+                st.write(f"Model: {result['model']}")
+                st.write(f"Device: {result['device']}")
+                st.write(f"Voltage: {result['voltage']:.5f} V")
+                st.write(f"Temperature: {result['temperature']:g} K")
                 st.write(
-                    "The original models were trained on 1N4004 "
-                    "forward-bias measurements. The newer SVR models "
-                    "use device, voltage, and temperature features. "
-                    "Predictions may be inaccurate for unsupported "
-                    "devices or conditions outside their training data."
+                    f"Estimated current: {result['current']:.6g} A "
+                    f"({result['current'] * 1000:.6g} mA)"
+                )
+                st.write(
+                    "A prediction inside the measured voltage range can "
+                    "still be inaccurate. These models are estimates, "
+                    "not substitutes for physical measurements."
                 )
 
             if valid_data:
-                st.markdown("### Model against measured data")
+                st.markdown("### Original 1N4004 measured I–V curve")
                 draw_iv_curve(
-                    show_models=True,
-                    selected_model=result["model"],
-                    highlight_voltage=result["voltage"],
+                    highlight_voltage=result["voltage"]
                 )
 
         elif valid_data:
-            st.markdown("### Measured diode I–V curve")
+            st.markdown("### Original 1N4004 measured I–V curve")
             draw_iv_curve()
+
 
 
 # ---------- MODEL COMPARISON ----------
