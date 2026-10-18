@@ -309,6 +309,7 @@ elif st.session_state.page == "Predictor":
 
         
         
+        
         if st.button("Predict current", key="predict_button"):
             try:
                 if model_name in ["Silicon SVR", "SiC SVR"]:
@@ -320,51 +321,57 @@ elif st.session_state.page == "Predictor":
 
                     if device_data.empty:
                         st.error(
-                        "No measured data is available for this diode "
-                        "at the selected temperature."
+                            "No measured data is available for this diode "
+                            "at the selected temperature."
+                        )
+                    else:
+                        min_voltage = device_data["voltage_V"].min()
+                        max_voltage = device_data["voltage_V"].max()
+
+                        if not min_voltage <= voltage <= max_voltage:
+                            st.error(
+                                f"Voltage is outside the measured range for {device} "
+                                f"at {temperature:g} K. Allowed range: "
+                                f"{min_voltage:.4f} V to {max_voltage:.4f} V."
+                            )
+                        else:
+                            model_input = pd.DataFrame([
+                                {
+                                    "device": device,
+                                    "voltage_V": voltage,
+                                    "temperature_K": temperature,
+                                }
+                            ])
+
+                            log_current = float(
+                                models[model_name].predict(model_input)[0]
+                            )
+                            current = 10 ** log_current
+
+                            st.session_state.last_prediction = {
+                                "model": model_name,
+                                "voltage": voltage,
+                                "current": current,
+                            }
+
+                else:
+                    current = float(
+                        np.asarray(
+                            models[model_name].predict(
+                                np.array([[voltage]])
+                            )
+                        ).reshape(-1)[0]
                     )
-                    st.stop()
 
-    min_voltage = device_data["voltage_V"].min()
-    max_voltage = device_data["voltage_V"].max()
+                    st.session_state.last_prediction = {
+                        "model": model_name,
+                        "voltage": voltage,
+                        "current": current,
+                    }
 
-    if not min_voltage <= voltage <= max_voltage:
-        st.error(
-            f"Voltage is outside the measured range for {device} "
-            f"at {temperature:g} K. "
-            f"Allowed range: {min_voltage:.4f} V to {max_voltage:.4f} V."
-        )
-        st.stop()
-
-    model_input = pd.DataFrame([
-        {
-            "device": device,
-            "voltage_V": voltage,
-            "temperature_K": temperature,
-        }
-    ])
-
-    log_current = float(
-        models[model_name].predict(model_input)[0]
-    )
-    current = 10 ** log_current
-
-else:
-    current = float(
-        np.asarray(
-            models[model_name].predict(np.array([[voltage]]))
-        ).reshape(-1)[0]
-    )
-
-                st.session_state.last_prediction = {
-                    "model": model_name,
-                    "voltage": voltage,
-                    "current": current,
-                }
-
+            
             except Exception as exc:
                 st.error(f"Prediction failed: {exc}")
-
 
         result = st.session_state.get("last_prediction")
 
