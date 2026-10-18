@@ -354,7 +354,7 @@ else:
         np.asarray(
             models[model_name].predict(np.array([[voltage]]))
         ).reshape(-1)[0]
-    ))
+    )
 
                 st.session_state.last_prediction = {
                     "model": model_name,
