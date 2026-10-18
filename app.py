@@ -470,7 +470,12 @@ elif st.session_state.page == "Predictor":
 elif st.session_state.page == "Model Comparison":
     st.markdown('<div class="section-kicker">Evaluation</div>', unsafe_allow_html=True)
     st.title("Model comparison")
-    st.write("These are the recorded held-out random-test results from the project. Lower MAE and RMSE are better; R² closer to 1 indicates a better fit on this test set.")
+    st.write(
+    "These are previously recorded held-out random-test results for the "
+    "1N4004 dataset. The metrics are displayed from saved values rather "
+    "than recalculated on each app run. Lower MAE and RMSE are better; "
+    "R² closer to 1 indicates a better fit on this test set."
+    )
     metrics = pd.DataFrame([
         {"Model": "Random Forest", "MAE (A)": 0.0001714702, "RMSE (A)": 0.0004224828, "R²": 0.9989055},
         {"Model": "Tuned SVR", "MAE (A)": 0.0002631377, "RMSE (A)": 0.0003458506, "R²": 0.9992665},
