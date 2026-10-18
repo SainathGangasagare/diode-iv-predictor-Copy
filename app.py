@@ -83,8 +83,37 @@ def load_data():
         df = df.sort_values("v_meas").reset_index(drop=True)
     return df
 
+
+@st.cache_data
+def load_training_data():
+    path = "data/processed/classified_diode_measurements.csv"
+
+    if not os.path.exists(path):
+        return pd.DataFrame()
+
+    df = pd.read_csv(path)
+
+    required_columns = {
+        "device",
+        "material",
+        "voltage_V",
+        "current_A",
+        "temperature_K",
+    }
+
+    if not required_columns.issubset(df.columns):
+        return pd.DataFrame()
+
+    df = df.dropna(
+        subset=["device", "voltage_V", "current_A", "temperature_K"]
+    ).copy()
+
+    return df
+
+
 models, model_errors = load_models()
 data = load_data()
+training_data = load_training_data()
 
 PAGES = ["Home", "Predictor", "Model Comparison", "Dataset Explorer"]
 
@@ -283,35 +312,49 @@ elif st.session_state.page == "Predictor":
         if st.button("Predict current", key="predict_button"):
             try:
                 if model_name in ["Silicon SVR", "SiC SVR"]:
-                    if not 77.0 <= temperature <= 293.0:
-                        st.error(
-                            "Temperature must be between 77 K and "
-                            "293 K for these models."
-                        )
-                        st.stop()
+    device_data = training_data[
+        (training_data["device"] == device)
+        & (training_data["temperature_K"] == temperature)
+        & (training_data["current_A"] > 0)
+    ]
 
-                    device_value = device
-                    model_input = pd.DataFrame([
-                        {
-                            "device": device_value,
-                            "voltage_V": voltage,
-                            "temperature_K": temperature,
-                        }
-                    ])
+    if device_data.empty:
+        st.error(
+            "No measured data is available for this diode "
+            "at the selected temperature."
+        )
+        st.stop()
 
-                    log_current = float(
-                        models[model_name].predict(model_input)[0]
-                    )
-                    current = 10 ** log_current
+    min_voltage = device_data["voltage_V"].min()
+    max_voltage = device_data["voltage_V"].max()
 
-                else:
-                    current = float(
-                        np.asarray(
-                            models[model_name].predict(
-                                np.array([[voltage]])
-                            )
-                        ).reshape(-1)[0]
-                    )
+    if not min_voltage <= voltage <= max_voltage:
+        st.error(
+            f"Voltage is outside the measured range for {device} "
+            f"at {temperature:g} K. "
+            f"Allowed range: {min_voltage:.4f} V to {max_voltage:.4f} V."
+        )
+        st.stop()
+
+    model_input = pd.DataFrame([
+        {
+            "device": device,
+            "voltage_V": voltage,
+            "temperature_K": temperature,
+        }
+    ])
+
+    log_current = float(
+        models[model_name].predict(model_input)[0]
+    )
+    current = 10 ** log_current
+
+else:
+    current = float(
+        np.asarray(
+            models[model_name].predict(np.array([[voltage]]))
+        ).reshape(-1)[0]
+    ))
 
                 st.session_state.last_prediction = {
                     "model": model_name,
