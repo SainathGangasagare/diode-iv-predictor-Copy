@@ -318,12 +318,12 @@ elif st.session_state.page == "Predictor":
                         & (training_data["current_A"] > 0)
                     ]
 
-    if device_data.empty:
-        st.error(
-            "No measured data is available for this diode "
-            "at the selected temperature."
-        )
-        st.stop()
+                    if device_data.empty:
+                        st.error(
+                        "No measured data is available for this diode "
+                        "at the selected temperature."
+                    )
+                    st.stop()
 
     min_voltage = device_data["voltage_V"].min()
     max_voltage = device_data["voltage_V"].max()
