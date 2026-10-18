@@ -76,3 +76,49 @@ def diode_current_array(
     vt = thermal_voltage(temperature_c)
     exponents = np.clip(voltages / (n * vt), -745.0, 700.0)
     return isat * np.expm1(exponents)
+
+def fit_shockley_parameters(
+    voltages_v,
+    currents_a,
+    temperature_c: Number = 25.0,
+) -> dict:
+    """Fit Shockley parameters to positive forward-current measurements.
+
+    Fits log(current) against voltage using a simple linear approximation.
+    Use only a forward-bias region where the ideal Shockley model is
+    reasonably applicable. This fit does not account for series resistance.
+    """
+    voltages = np.asarray(voltages_v, dtype=float)
+    currents = np.asarray(currents_a, dtype=float)
+
+    if voltages.shape != currents.shape or voltages.ndim != 1:
+        raise ValueError("Voltage and current arrays must be matching 1D arrays.")
+
+    mask = (
+        np.isfinite(voltages)
+        & np.isfinite(currents)
+        & (currents > 0)
+        & (voltages > 0)
+    )
+    voltages = voltages[mask]
+    currents = currents[mask]
+
+    if len(voltages) < 3:
+        raise ValueError("At least three positive forward-current measurements are required.")
+
+    # Fit ln(I) = slope * V + intercept.
+    slope, intercept = np.polyfit(voltages, np.log(currents), 1)
+
+    if not math.isfinite(slope) or slope <= 0:
+        raise ValueError("The measured data did not produce a valid positive slope.")
+
+    vt = thermal_voltage(temperature_c)
+    ideality_factor = 1.0 / (slope * vt)
+    saturation_current_a = math.exp(float(np.clip(intercept, -700, 700)))
+
+    return {
+        "saturation_current_a": saturation_current_a,
+        "ideality_factor": ideality_factor,
+        "temperature_c": float(temperature_c),
+        "points_used": int(len(voltages)),
+    }
