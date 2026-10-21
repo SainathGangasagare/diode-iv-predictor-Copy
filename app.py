@@ -491,24 +491,18 @@ elif st.session_state.page == "Predictor":
                     "not substitutes for physical measurements."
                 )
 
-            if valid_data:
-                st.markdown("### Original 1N4004 measured I–V curve")
-                draw_iv_curve(
-                    highlight_voltage=result["voltage"]
-                )
-
-        elif valid_data:
-            st.markdown("### Original 1N4004 measured I–V curve")
-            draw_iv_curve()
 
 
 
 
         st.markdown("### Interactive I–V graph")
         st.caption(
-            "Choose measurement curves to compare. The graph updates when you change "
-            "the selected datasets, temperature, or voltage. A model trained on forward "
-            "bias data is not a validated reverse-bias predictor."
+            "Select datasets using the checkboxes. The graph shows negative and positive "
+            "voltages on the same axis. The current axis uses a symmetric-log scale so "
+            "small reverse leakage currents and large forward currents can both be seen. "
+            "Changing voltage moves the marker; it does not change measured data. "
+            "Reverse-bias measurements are not proof that a prediction model was trained "
+            "for reverse bias."
         )
 
         # Checkboxes are placed above the graph as requested.
@@ -593,9 +587,12 @@ elif st.session_state.page == "Predictor":
             )
         ax.axvline(voltage, linestyle="--", linewidth=1.2, alpha=.7,
                    color="#9dbcf4", label=f"Selected voltage: {voltage:.4g} V")
-        ax.set_title("Selected diode measurements and current prediction", color="#eaf4ff", pad=12)
-        ax.set_xlabel("Voltage (V)", color="#a9c4df")
-        ax.set_ylabel("Current (A)", color="#a9c4df")
+        ax.set_title("Diode I–V characteristics: forward and reverse regions", color="#eaf4ff", pad=12)
+        ax.set_xlabel("Voltage (V)  |  negative = reverse bias, positive = forward bias", color="#a9c4df")
+        ax.set_ylabel("Current (A, symmetric-log scale)", color="#a9c4df")
+        # A symmetric log scale preserves the sign of current and makes tiny
+        # reverse leakage currents visible alongside larger forward currents.
+        ax.set_yscale("symlog", linthresh=1e-9)
         ax.tick_params(colors="#a9c4df")
         for spine in ax.spines.values():
             spine.set_color("#294563")
@@ -603,6 +600,8 @@ elif st.session_state.page == "Predictor":
         if plotted_any or result_matches_inputs:
             ax.legend(facecolor="#10223b", edgecolor="#294563", labelcolor="#eaf4ff", fontsize=8)
         else:
+            ax.set_xlim(-1.0, 1.0)
+            ax.set_ylim(-1e-6, 1e-6)
             ax.text(0.5, 0.5, "Select one or more datasets above to display curves",
                     transform=ax.transAxes, ha="center", color="#b9cce3")
         fig.tight_layout()
