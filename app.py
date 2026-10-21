@@ -248,11 +248,12 @@ elif st.session_state.page == "Predictor":
     else:
         model_name = st.selectbox("Choose a model", list(models.keys()))
 
-        # No explicit minimum/maximum: users may enter voltages outside
-        # the measured range. The app warns about extrapolation below.
+        safe_min = max(0.0, vmin)
         voltage = st.number_input(
             "Measured voltage (V)",
-            value=0.70,
+            min_value=-0.1,
+            max_value=max(1.5, vmax + 0.5),
+            value=float(min(max(0.70, safe_min), vmax)),
             step=0.005,
             format="%.5f",
         )
@@ -339,34 +340,32 @@ elif st.session_state.page == "Predictor":
                                 device_data["voltage_V"].max()
                             )
 
-                            # Allow prediction outside the measured voltage range,
-                            # but explicitly warn that this is extrapolation.
                             if not min_voltage <= voltage <= max_voltage:
-                                st.warning(
-                                    f"{voltage:.5f} V is outside the measured range "
-                                    f"for {device} at {temperature:g} K "
-                                    f"({min_voltage:.5f} to {max_voltage:.5f} V). "
-                                    "The model will still predict, but the result may be unreliable."
+                                st.error(
+                                    f"Voltage is outside the measured range "
+                                    f"for {device} at {temperature:g} K. "
+                                    f"Allowed range: {min_voltage:.4f} V "
+                                    f"to {max_voltage:.4f} V."
                                 )
+                            else:
+                                model_input = pd.DataFrame([{
+                                    "device": device,
+                                    "voltage_V": voltage,
+                                    "temperature_K": temperature,
+                                }])
 
-                            model_input = pd.DataFrame([{
-                                "device": device,
-                                "voltage_V": voltage,
-                                "temperature_K": temperature,
-                            }])
+                                log_current = float(
+                                    models[model_name].predict(model_input)[0]
+                                )
+                                current = 10 ** log_current
 
-                            log_current = float(
-                                models[model_name].predict(model_input)[0]
-                            )
-                            current = 10 ** log_current
-
-                            st.session_state.last_prediction = {
-                                "model": model_name,
-                                "device": device,
-                                "voltage": voltage,
-                                "temperature": temperature,
-                                "current": current,
-                            }
+                                st.session_state.last_prediction = {
+                                    "model": model_name,
+                                    "device": device,
+                                    "voltage": voltage,
+                                    "temperature": temperature,
+                                    "current": current,
+                                }
 
                 else:
                     # Original models use voltage as their only input.
@@ -502,78 +501,180 @@ elif st.session_state.page == "Dataset Explorer":
     st.markdown('<div class="section-kicker">Experimental measurements</div>', unsafe_allow_html=True)
     st.title("Dataset explorer")
     st.write(
-        "Explore the experimental datasets included in this repository. "
-        "Displaying a dataset here does not mean a prediction model was trained on it."
+        "Choose any CSV dataset included in this repository. The explorer "
+        "shows its measurements and, when voltage and current columns can be "
+        "identified, plots its I–V curve."
     )
 
-    dataset_files = {
-        "Original 1N4004 cleaned data": "diode_iv_data.csv",
-        "1N4004 forward bias": "data/external/1n4004_forward.csv",
-        "1N4004 reverse bias": "data/external/1n4004_reverse.csv",
-        "1N4004 reverse bias (10 µA range)": "data/external/1n4004_reverse_10uA_range.csv",
-        "1N5229B Zener reverse bias": "data/external/1n5229b_reverse.csv",
-        "SB560 forward bias": "data/external/sb560_forward.csv",
-        "SB560 reverse bias": "data/external/sb560_reverse.csv",
-        "Cryogenic diode measurements": "data/external/cryogenic_diode_measurements.csv",
-        "GaN Schottky measurements": "data/external/gan_schottky_measurements.csv",
-        "Classified combined measurements": "data/processed/classified_diode_measurements.csv",
-        "External measurements review": "data/processed/external_iv_measurements_review.csv",
-    }
+    # Discover CSV files from the repository's root data file and data folders.
+    # This means newly added CSVs appear here without editing a hard-coded list.
+    dataset_paths = []
+    for folder in [".", "data/external", "data/processed"]:
+        if os.path.isdir(folder):
+            for filename in os.listdir(folder):
+                full_path = os.path.join(folder, filename)
+                if os.path.isfile(full_path) and filename.lower().endswith(".csv"):
+                    relative_path = os.path.normpath(full_path)
+                    if relative_path not in dataset_paths:
+                        dataset_paths.append(relative_path)
 
-    selected_name = st.selectbox("Choose a dataset", list(dataset_files.keys()))
-    selected_path = dataset_files[selected_name]
+    dataset_paths = sorted(dataset_paths, key=lambda path: (
+        0 if os.path.basename(path) == "diode_iv_data.csv" else 1,
+        path.lower()
+    ))
 
-    if os.path.exists(selected_path):
+    if not dataset_paths:
+        st.error("No CSV datasets were found in the repository.")
+    else:
+        def dataset_label(path):
+            labels = {
+                "diode_iv_data.csv": "Original 1N4004 cleaned data",
+                "data/external/1n4004_forward.csv": "1N4004 — forward bias (raw)",
+                "data/external/1n4004_reverse.csv": "1N4004 — reverse bias",
+                "data/external/1n4004_reverse_10uA_range.csv": "1N4004 — reverse bias (10 µA range)",
+                "data/external/1n5229b_reverse.csv": "1N5229B Zener — reverse bias",
+                "data/external/sb560_forward.csv": "SB560 — forward bias",
+                "data/external/sb560_reverse.csv": "SB560 — reverse bias",
+                "data/external/cryogenic_diode_measurements.csv": "Cryogenic diode measurements",
+                "data/external/gan_schottky_measurements.csv": "GaN Schottky measurements",
+                "data/processed/classified_diode_measurements.csv": "Classified combined measurements",
+                "data/processed/external_iv_measurements_review.csv": "External measurements review",
+            }
+            return labels.get(path, path)
+
+        selected_path = st.selectbox(
+            "Select dataset",
+            dataset_paths,
+            format_func=dataset_label,
+            key="explorer_dataset_path",
+        )
+
         try:
-            df = pd.read_csv(selected_path)
-            st.write(f"**Dataset:** {selected_name}")
-            st.write(f"**Rows:** {len(df)} · **Columns:** {len(df.columns)}")
-            st.dataframe(df.head(1000), use_container_width=True, hide_index=True)
-            st.download_button(
-                "Download selected dataset as CSV",
-                data=df.to_csv(index=False).encode("utf-8"),
-                file_name=os.path.basename(selected_path),
-                mime="text/csv",
-            )
+            selected_data = pd.read_csv(selected_path)
+        except Exception as exc:
+            selected_data = pd.DataFrame()
+            st.error(f"Could not read {selected_path}: {exc}")
 
-            voltage_candidates = ["v_meas", "voltage_V", "voltage", "Voltage", "V", "voltage (V)", "Vd", "voltage_v"]
-            current_candidates = ["i_meas", "current_A", "current", "Current", "I", "current (A)", "Id", "current_a"]
-            voltage_col = next((c for c in voltage_candidates if c in df.columns), None)
-            current_col = next((c for c in current_candidates if c in df.columns), None)
+        if not selected_data.empty:
+            st.caption(f"File: `{selected_path}`")
+            row_col, col_col = st.columns(2)
+            row_col.metric("Rows", f"{len(selected_data):,}")
+            col_col.metric("Columns", len(selected_data.columns))
 
-            if voltage_col and current_col:
-                plot_data = df[[voltage_col, current_col]].copy()
+            # Match common voltage/current column-name pairs used by the files
+            # in this repository.
+            column_pairs = [
+                ("voltage_V", "current_A"),
+                ("v_meas", "i_meas"),
+                ("V_V", "I_A"),
+                ("voltage", "current"),
+                ("Voltage (V)", "Current (A)"),
+                ("voltage_v", "current_a"),
+            ]
+            lower_to_original = {str(col).lower(): col for col in selected_data.columns}
+            voltage_col = current_col = None
+            for v_candidate, i_candidate in column_pairs:
+                if v_candidate in selected_data.columns and i_candidate in selected_data.columns:
+                    voltage_col, current_col = v_candidate, i_candidate
+                    break
+                if v_candidate.lower() in lower_to_original and i_candidate.lower() in lower_to_original:
+                    voltage_col = lower_to_original[v_candidate.lower()]
+                    current_col = lower_to_original[i_candidate.lower()]
+                    break
+
+            # Where a file contains multiple equivalent column pairs, prefer
+            # the standardized voltage_V/current_A pair selected above.
+            if voltage_col is not None and current_col is not None:
+                plot_data = selected_data[[voltage_col, current_col]].copy()
                 plot_data[voltage_col] = pd.to_numeric(plot_data[voltage_col], errors="coerce")
                 plot_data[current_col] = pd.to_numeric(plot_data[current_col], errors="coerce")
-                plot_data = plot_data.dropna()
-                if not plot_data.empty:
-                    st.subheader("Measured I–V curve")
+                plot_data = plot_data.dropna(subset=[voltage_col, current_col])
+
+                # Optional device and temperature filters, only shown when
+                # those columns exist in the selected dataset.
+                if "device" in selected_data.columns:
+                    devices = sorted(selected_data["device"].dropna().astype(str).unique().tolist())
+                    if len(devices) > 1:
+                        selected_device = st.selectbox(
+                            "Filter by device",
+                            ["All devices"] + devices,
+                            key=f"explorer_device_{selected_path}",
+                        )
+                        if selected_device != "All devices":
+                            selected_data = selected_data[
+                                selected_data["device"].astype(str) == selected_device
+                            ].copy()
+                            plot_data = selected_data[[voltage_col, current_col]].copy()
+                            plot_data[voltage_col] = pd.to_numeric(plot_data[voltage_col], errors="coerce")
+                            plot_data[current_col] = pd.to_numeric(plot_data[current_col], errors="coerce")
+                            plot_data = plot_data.dropna(subset=[voltage_col, current_col])
+
+                if "material" in selected_data.columns:
+                    materials = sorted(selected_data["material"].dropna().astype(str).unique().tolist())
+                    if len(materials) > 1:
+                        selected_material = st.selectbox(
+                            "Filter by material",
+                            ["All materials"] + materials,
+                            key=f"explorer_material_{selected_path}",
+                        )
+                        if selected_material != "All materials":
+                            selected_data = selected_data[
+                                selected_data["material"].astype(str) == selected_material
+                            ].copy()
+                            plot_data = selected_data[[voltage_col, current_col]].copy()
+                            plot_data[voltage_col] = pd.to_numeric(plot_data[voltage_col], errors="coerce")
+                            plot_data[current_col] = pd.to_numeric(plot_data[current_col], errors="coerce")
+                            plot_data = plot_data.dropna(subset=[voltage_col, current_col])
+
+                if len(plot_data):
+                    st.caption(
+                        f"Plotting **{voltage_col}** as voltage and "
+                        f"**{current_col}** as current. Units are taken from "
+                        "the column names/source dataset."
+                    )
+                    st.dataframe(selected_data, use_container_width=True, hide_index=True)
+                    st.download_button(
+                        "Download selected dataset",
+                        selected_data.to_csv(index=False).encode("utf-8"),
+                        file_name=os.path.basename(selected_path),
+                        mime="text/csv",
+                    )
+
                     fig, ax = plt.subplots(figsize=(9, 4.5))
                     fig.patch.set_facecolor("#081326")
                     ax.set_facecolor("#081326")
-                    ax.scatter(plot_data[voltage_col], plot_data[current_col], s=18, alpha=0.75, color="#38bdf8")
+                    ax.scatter(
+                        plot_data[voltage_col],
+                        plot_data[current_col],
+                        s=14 if len(plot_data) > 1000 else 24,
+                        alpha=0.7,
+                        label="Measurements",
+                    )
                     ax.set_xlabel(f"{voltage_col} (voltage)", color="#a9c4df")
                     ax.set_ylabel(f"{current_col} (current)", color="#a9c4df")
-                    ax.set_title(selected_name, color="#eaf4ff")
+                    ax.set_title(dataset_label(selected_path), color="#eaf4ff")
                     ax.tick_params(colors="#a9c4df")
                     for spine in ax.spines.values():
                         spine.set_color("#294563")
-                    ax.grid(True, alpha=0.25, color="#52708e")
+                    ax.grid(True, alpha=.25, color="#52708e")
+                    ax.legend(facecolor="#10223b", edgecolor="#294563", labelcolor="#eaf4ff")
                     fig.tight_layout()
                     st.pyplot(fig, use_container_width=True)
                     plt.close(fig)
+                else:
+                    st.warning("No usable numeric voltage/current rows remain after filtering.")
             else:
                 st.info(
-                    "This dataset is available for inspection and download, but its column names "
-                    "do not match the automatic voltage/current plotting patterns."
+                    "This CSV does not have a recognized voltage/current column pair. "
+                    "Its contents can still be inspected and downloaded below."
                 )
-        except Exception as exc:
-            st.error(f"Could not read this dataset: {exc}")
-    else:
-        st.error(
-            f"Dataset file not found: {selected_path}. Check that the file exists "
-            "at this path in the GitHub repository."
-        )
+                st.dataframe(selected_data, use_container_width=True, hide_index=True)
+                st.download_button(
+                    "Download selected dataset",
+                    selected_data.to_csv(index=False).encode("utf-8"),
+                    file_name=os.path.basename(selected_path),
+                    mime="text/csv",
+                )
 
 st.markdown("---")
 st.markdown('<p class="small-muted">DiodeLab AI · Educational ML demonstration · Predictions are estimates based on one measured 1N4004 voltage sweep.</p>', unsafe_allow_html=True)
