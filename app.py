@@ -248,12 +248,11 @@ elif st.session_state.page == "Predictor":
     else:
         model_name = st.selectbox("Choose a model", list(models.keys()))
 
-        safe_min = max(0.0, vmin)
+        # No artificial minimum or maximum: allow the user to enter any voltage.
+        # The model may still be unreliable outside its training-data range.
         voltage = st.number_input(
             "Measured voltage (V)",
-            min_value=-0.1,
-            max_value=max(1.5, vmax + 0.5),
-            value=float(min(max(0.70, safe_min), vmax)),
+            value=0.70,
             step=0.005,
             format="%.5f",
         )
@@ -341,31 +340,31 @@ elif st.session_state.page == "Predictor":
                             )
 
                             if not min_voltage <= voltage <= max_voltage:
-                                st.error(
-                                    f"Voltage is outside the measured range "
-                                    f"for {device} at {temperature:g} K. "
-                                    f"Allowed range: {min_voltage:.4f} V "
-                                    f"to {max_voltage:.4f} V."
+                                st.warning(
+                                    f"{voltage:.5f} V is outside the measured range "
+                                    f"for {device} at {temperature:g} K "
+                                    f"({min_voltage:.4f} V to {max_voltage:.4f} V). "
+                                    "The model will still make a prediction, but it may be unreliable."
                                 )
-                            else:
-                                model_input = pd.DataFrame([{
-                                    "device": device,
-                                    "voltage_V": voltage,
-                                    "temperature_K": temperature,
-                                }])
 
-                                log_current = float(
-                                    models[model_name].predict(model_input)[0]
-                                )
-                                current = 10 ** log_current
+                            model_input = pd.DataFrame([{
+                                "device": device,
+                                "voltage_V": voltage,
+                                "temperature_K": temperature,
+                            }])
 
-                                st.session_state.last_prediction = {
-                                    "model": model_name,
-                                    "device": device,
-                                    "voltage": voltage,
-                                    "temperature": temperature,
-                                    "current": current,
-                                }
+                            log_current = float(
+                                models[model_name].predict(model_input)[0]
+                            )
+                            current = 10 ** log_current
+
+                            st.session_state.last_prediction = {
+                                "model": model_name,
+                                "device": device,
+                                "voltage": voltage,
+                                "temperature": temperature,
+                                "current": current,
+                            }
 
                 else:
                     # Original models use voltage as their only input.
