@@ -189,7 +189,7 @@ if "page" not in st.session_state:
 def go_to(page):
     st.session_state.page = page
 
-nav_cols = st.columns([1.45, 1, 1.25, 1.25, 1.15], gap="small")
+nav_cols = st.columns([1.45, 1, 1.25, 1.25, 1.15], gap="medium")
 
 with nav_cols[0]:
     st.markdown(
