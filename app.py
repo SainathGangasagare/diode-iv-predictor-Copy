@@ -233,6 +233,7 @@ def draw_iv_curve(show_models=False, selected_model=None, highlight_voltage=None
     plt.close(fig)
 
 # ---------- HOME ----------
+```python
 if st.session_state.page == "Home":
     st.markdown("""
     <div class="hero">
@@ -241,39 +242,81 @@ if st.session_state.page == "Home":
       <p>Explore how a 1N4004 diode responds to forward voltage. Compare regression models trained on measured I–V data, make predictions, and inspect the dataset in one interactive workspace.</p>
     </div>
     """, unsafe_allow_html=True)
+
     st.write("")
     c1, c2, c3, c4 = st.columns(4)
+
     with c1:
-        st.markdown(f'<div class="metric-card"><div class="metric-label">Clean measurements</div><div class="metric-value">{len(data) if valid_data else "—"}</div><div class="metric-note">After removing missing rows</div></div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="metric-card"><div class="metric-label">Clean measurements</div><div class="metric-value">{len(data) if valid_data else "—"}</div><div class="metric-note">After removing missing rows</div></div>',
+            unsafe_allow_html=True
+        )
+
     with c2:
-        st.markdown(f'<div class="metric-card"><div class="metric-label">Voltage range</div><div class="metric-value">{vmin:.3f} V</div><div class="metric-note">to {vmax:.3f} V</div></div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="metric-card"><div class="metric-label">Voltage range</div><div class="metric-value">{vmin:.3f} V</div><div class="metric-note">to {vmax:.3f} V</div></div>',
+            unsafe_allow_html=True
+        )
+
     with c3:
-        st.markdown(f'<div class="metric-card"><div class="metric-label">Models available</div><div class="metric-value">{len(models)}</div><div class="metric-note">Saved trained estimators</div></div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="metric-card"><div class="metric-label">Models available</div><div class="metric-value">{len(models)}</div><div class="metric-note">Saved trained estimators</div></div>',
+            unsafe_allow_html=True
+        )
+
     with c4:
-        st.markdown('<div class="metric-card"><div class="metric-label">Prediction type</div><div class="metric-value">I–V</div><div class="metric-note">Voltage in, current out</div></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="metric-card"><div class="metric-label">Prediction type</div><div class="metric-value">I–V</div><div class="metric-note">Voltage in, current out</div></div>',
+            unsafe_allow_html=True
+        )
 
     st.write("")
-    st.markdown('<div class="section-kicker">Explore the workspace</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-kicker">Explore the workspace</div>',
+        unsafe_allow_html=True
+    )
+
     a, b, c = st.columns(3)
-    with a:
-        st.markdown('<div class="content-card"><h3>⚡ Predictor</h3><p class="small-muted">Enter a voltage and estimate forward current using a saved model.</p></div>', unsafe_allow_html=True)
-        st.button("Open predictor →", key="home_predictor", use_container_width=True,
-                  on_click=go_to, args=("Predictor",))
-    with b:
-        st.markdown('<div class="content-card"><h3>📊 Model comparison</h3><p class="small-muted">Review held-out test metrics and compare prediction curves.</p></div>', unsafe_allow_html=True)
-        st.button("Compare models →", key="home_compare", use_container_width=True,
-                  on_click=go_to, args=("Model Comparison",))
-    with c:
-        st.markdown('<div class="content-card"><h3>🧪 Dataset explorer</h3><p class="small-muted">Filter measurements, inspect rows, and download the cleaned data.</p></div>', unsafe_allow_html=True)
-        st.button("Explore data →", key="home_data", use_container_width=True,
-                  on_click=go_to, args=("Dataset Explorer",))
-    st.write("")
-    st.markdown("### Measured diode response")
-    if valid_data:
-        draw_iv_curve()
-    else:
-        st.error("The dataset could not be loaded. Check that diode_iv_data.csv is in the repository root.")
 
+    with a:
+        st.markdown(
+            '<div class="content-card"><h3>⚡ Predictor</h3><p class="small-muted">Enter a voltage and estimate forward current using a saved model.</p></div>',
+            unsafe_allow_html=True
+        )
+        st.button(
+            "Open predictor →",
+            key="home_predictor",
+            use_container_width=True,
+            on_click=go_to,
+            args=("Predictor",)
+        )
+
+    with b:
+        st.markdown(
+            '<div class="content-card"><h3>📊 Model comparison</h3><p class="small-muted">Review held-out test metrics and compare prediction curves.</p></div>',
+            unsafe_allow_html=True
+        )
+        st.button(
+            "Compare models →",
+            key="home_compare",
+            use_container_width=True,
+            on_click=go_to,
+            args=("Model Comparison",)
+        )
+
+    with c:
+        st.markdown(
+            '<div class="content-card"><h3>🧪 Dataset explorer</h3><p class="small-muted">Filter measurements, inspect rows, and download the cleaned data.</p></div>',
+            unsafe_allow_html=True
+        )
+        st.button(
+            "Explore data →",
+            key="home_data",
+            use_container_width=True,
+            on_click=go_to,
+            args=("Dataset Explorer",)
+        )
+```
 # ---------- PREDICTOR ----------
 
 elif st.session_state.page == "Predictor":
