@@ -13,17 +13,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# Fix top navigation button click area 
-div[data-testid="stHorizontalBlock"] div.stButton {
-    position: relative;
-    z-index: 10;
-}
 
-div[data-testid="stHorizontalBlock"] div.stButton > button {
-    position: relative;
-    z-index: 11;
-    pointer-events: auto;
-}
 
 # ---------- Theme and styling ----------
 st.markdown("""
@@ -76,6 +66,17 @@ div[data-baseweb="select"] > div, div[data-baseweb="input"] > div { background:#
 [data-testid="stAlert"] { border-radius:12px; }
 @keyframes rise { from {opacity:0; transform:translateY(12px)} to {opacity:1; transform:translateY(0)} }
 hr { border-color:#203b5d; }
+/* Fix top navigation button click area */
+div[data-testid="stHorizontalBlock"] div.stButton {
+    position: relative;
+    z-index: 10;
+}
+
+div[data-testid="stHorizontalBlock"] div.stButton > button {
+    position: relative;
+    z-index: 11;
+    pointer-events: auto;
+}
 </style>
 """, unsafe_allow_html=True)
 
