@@ -1,33 +1,134 @@
 import os
-import warnings
 import joblib
 import numpy as np
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="DiodeLab AI | I–V Predictor", page_icon="⚡", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(
+    page_title="DiodeLab AI | I–V Predictor",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 
+# ---------- Theme and styling ----------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-html, body, [class*="css"] { font-family: Inter, sans-serif; }
-.stApp {background:radial-gradient(ellipse at 50% -18%,rgba(0,153,255,.18),transparent 48%),#050b18;color:#eaf4ff}
-.block-container{max-width:1320px;padding-top:1rem!important;padding-bottom:2rem}
-[data-testid="stSidebar"]{display:none} h1,h2,h3{color:#f3f8ff} p,label{color:#b9cce3}
-div.stButton>button,div[data-testid="stDownloadButton"] button{border-radius:10px;border:1px solid #168de0;background:linear-gradient(100deg,#0878db,#05a6cf);color:white!important;font-weight:700}
-[data-testid="stMetric"]{background:#0c1c33;border:1px solid #203b5d;padding:.8rem;border-radius:12px}
+html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+:root { color-scheme: dark; }
+.stApp { background: radial-gradient(ellipse at 50% -18%, rgba(0,153,255,.22), transparent 48%), radial-gradient(circle at 85% 25%, rgba(0,210,255,.08), transparent 28%), #050b18; color:#eaf4ff; }
+header[data-testid="stHeader"] { height: 0.25rem; background: transparent; }
+.block-container { max-width: 1320px; padding-top: .55rem !important; padding-bottom: 2.5rem; }
+[data-testid="stSidebar"] { display:none; }
+h1,h2,h3,h4 { color:#f3f8ff; letter-spacing:-.025em; }
+p, label, .stMarkdown { color:#b9cce3; }
+.hero { position:relative; overflow:hidden; padding:clamp(2rem,5vw,4.5rem); border:1px solid rgba(70,174,255,.35); border-radius:24px; background:radial-gradient(ellipse at 78% 40%,rgba(0,149,255,.22),transparent 42%),linear-gradient(115deg,#0b1830 0%,#0b2445 58%,#071326 100%); box-shadow:0 20px 70px rgba(0,80,180,.16); animation:rise .7s ease-out both; }
+.hero:after { content:' '; position:absolute; width:310px; height:310px; right:-85px; top:-115px; border-radius:50%; border:1px solid rgba(90,195,255,.18); box-shadow:0 0 0 28px rgba(90,195,255,.035),0 0 0 58px rgba(90,195,255,.025); pointer-events:none; }
+.eyebrow { display:inline-block; padding:.4rem .75rem; border-radius:999px; border:1px solid rgba(83,190,255,.4); color:#79d8ff; background:rgba(10,100,180,.15); font-size:.72rem; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
+.hero h1 { color:#f4f9ff; font-size:clamp(2.3rem,5.5vw,4.4rem); line-height:1.03; margin:1rem 0; }
+.gradient-text { background:linear-gradient(90deg,#55d7ff,#4b91ff,#9b8cff); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.hero p { color:#b5cce5; font-size:1.05rem; max-width:780px; line-height:1.8; }
+.metric-card,.content-card { background:linear-gradient(145deg,rgba(15,33,59,.96),rgba(8,20,39,.96)); border:1px solid #203b5d; border-radius:16px; padding:1.1rem 1.2rem; box-shadow:0 8px 24px rgba(0,0,0,.12); transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease; }
+.metric-card:hover,.content-card:hover { transform:translateY(-3px); border-color:#38bdf8; box-shadow:0 12px 30px rgba(0,145,255,.12); }
+.metric-label { color:#9bb5d2; font-size:.85rem; }.metric-value { color:#f2f8ff; font-size:1.75rem; font-weight:800; margin-top:.25rem; }.metric-note { color:#7995b6; font-size:.8rem; margin-top:.2rem; }
+.section-kicker { color:#5bd5ff; text-transform:uppercase; font-size:.76rem; font-weight:800; letter-spacing:.14em; }.small-muted { color:#a8bfd9; font-size:.9rem; }
+div.stButton > button, div[data-testid="stDownloadButton"] button { border-radius:10px; border:1px solid #168de0; background:linear-gradient(100deg,#0878db,#05a6cf); color:#fff !important; font-weight:700; padding:.72rem 1rem; transition:transform .2s ease,filter .2s ease; }
+div.stButton > button p, div[data-testid="stDownloadButton"] button p { color:#fff !important; font-weight:700; }
+div.stButton > button:hover, div[data-testid="stDownloadButton"] button:hover { filter:brightness(1.15); transform:translateY(-2px); color:#fff !important; border-color:#5bd5ff; }
+[data-testid="stMetric"] { background:#0c1c33; border:1px solid #203b5d; padding:1rem; border-radius:14px; }
+[data-testid="stDataFrame"] { border:1px solid #203b5d; border-radius:12px; overflow:hidden; }
+div[data-baseweb="select"] > div, div[data-baseweb="input"] > div { background:#0c1c33; border-color:#315274; color:#eaf4ff; }
+.stSlider [data-baseweb="slider"] div { color:#eaf4ff; }
+[data-testid="stAlert"] { border-radius:12px; }
+@keyframes rise { from {opacity:0; transform:translateY(12px)} to {opacity:1; transform:translateY(0)} }
+hr { border-color:#203b5d; }
 </style>
 """, unsafe_allow_html=True)
 
-# Older saved models refer to this function when unpickling.
-def inverse_log_transform(values):
-    return np.power(10.0, values)
+# ---------- Load project assets ----------
 
-ROOT = "."
+@st.cache_resource
+def load_models():
+    loaded = {}
+    errors = []
+
+    for label, filename in [
+        ("Random Forest", "random_forest_model.joblib"),
+        ("Tuned SVR", "tuned_svr_model.joblib"),
+        ("Silicon SVR", "trained_models/silicon_svr.joblib"),
+        ("SiC SVR", "trained_models/silicon_carbide_svr.joblib"),
+    ]:
+        if os.path.exists(filename):
+            try:
+                loaded[label] = joblib.load(filename)
+            except Exception as exc:
+                errors.append(f"{filename}: {exc}")
+        else:
+            errors.append(f"Missing file: {filename}")
+
+    return loaded, errors
+
 
 @st.cache_data
-def read_csv_safe(path):
+def load_data():
+    path = "diode_iv_data.csv"
+    if not os.path.exists(path):
+        return pd.DataFrame()
+    df = pd.read_csv(path)
+    # Standardize the expected column names while preserving source values.
+    if {"v_meas", "i_meas"}.issubset(df.columns):
+        df = df[["v_meas", "i_meas"]].dropna().copy()
+        df = df.sort_values("v_meas").reset_index(drop=True)
+    return df
+
+
+@st.cache_data
+def load_training_data():
+    path = "data/processed/classified_diode_measurements.csv"
+
+    if not os.path.exists(path):
+        return pd.DataFrame()
+
+    df = pd.read_csv(path)
+
+    required_columns = {
+        "device",
+        "material",
+        "voltage_V",
+        "current_A",
+        "temperature_K",
+    }
+
+    if not required_columns.issubset(df.columns):
+        return pd.DataFrame()
+
+    df = df.dropna(
+        subset=["device", "voltage_V", "current_A", "temperature_K"]
+    ).copy()
+
+    return df
+
+
+
+# ---------- Discover all available measurement CSVs ----------
+DATASET_FILES = {
+    "1N4004 forward bias": "data/external/1n4004_forward.csv",
+    "1N4004 reverse bias": "data/external/1n4004_reverse.csv",
+    "1N4004 reverse bias (10 µA range)": "data/external/1n4004_reverse_10uA_range.csv",
+    "1N5229B Zener reverse bias": "data/external/1n5229b_reverse.csv",
+    "SB560 forward bias": "data/external/sb560_forward.csv",
+    "SB560 reverse bias": "data/external/sb560_reverse.csv",
+    "Cryogenic diode measurements": "data/external/cryogenic_diode_measurements.csv",
+    "GaN Schottky measurements": "data/external/gan_schottky_measurements.csv",
+    "Classified combined measurements": "data/processed/classified_diode_measurements.csv",
+    "External measurements review": "data/processed/external_iv_measurements_review.csv",
+    "Original cleaned 1N4004": "diode_iv_data.csv",
+}
+
+@st.cache_data
+def read_dataset_csv(path):
     if not os.path.exists(path):
         return pd.DataFrame()
     try:
@@ -35,245 +136,559 @@ def read_csv_safe(path):
     except Exception:
         return pd.DataFrame()
 
-@st.cache_resource
-def load_models():
-    result, errors = {}, []
-    paths = {
-        "1N4004 · Random Forest": "random_forest_model.joblib",
-        "1N4004 · Tuned SVR": "tuned_svr_model.joblib",
-        "Silicon devices · SVR": "trained_models/silicon_svr.joblib",
-        "SiC devices · SVR": "trained_models/silicon_carbide_svr.joblib",
-        "GaN · Temperature-aware SVR": "trained_models/gan_temperature_aware_svr.joblib",
-    }
-    for label, path in paths.items():
-        if not os.path.exists(path):
-            errors.append(f"{label}: file not found ({path})")
-            continue
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                result[label] = joblib.load(path)
-        except Exception as exc:
-            errors.append(f"{label}: could not load model ({type(exc).__name__}: {exc})")
-    return result, errors
+def voltage_current_columns(frame):
+    """Return recognized voltage/current column names, or (None, None)."""
+    pairs = [
+        ("v_meas", "i_meas"), ("voltage_V", "current_A"),
+        ("V_V", "I_A"), ("V", "I"), ("voltage", "current"),
+    ]
+    for v_col, i_col in pairs:
+        if v_col in frame.columns and i_col in frame.columns:
+            return v_col, i_col
+    return None, None
+
+def material_label(dataset_name, frame):
+    if "material" in frame.columns:
+        vals = frame["material"].dropna().astype(str).unique()
+        if len(vals) == 1:
+            return vals[0]
+        if len(vals) > 1:
+            return "Multiple materials"
+    return dataset_name
+
 
 models, model_errors = load_models()
-main_data = read_csv_safe("diode_iv_data.csv")
-if {"v_meas", "i_meas"}.issubset(main_data.columns):
-    main_data = main_data[["v_meas", "i_meas"]].dropna().copy()
-else:
-    main_data = pd.DataFrame(columns=["v_meas", "i_meas"])
+data = load_data()
+training_data = load_training_data()
 
-classified = read_csv_safe("data/processed/classified_diode_measurements.csv")
-if not {"device", "material", "voltage_V", "current_A", "temperature_K"}.issubset(classified.columns):
-    classified = pd.DataFrame(columns=["device", "material", "voltage_V", "current_A", "temperature_K"])
-else:
-    classified = classified.dropna(subset=["device", "material", "voltage_V", "current_A", "temperature_K"]).copy()
+PAGES = ["Home", "Predictor", "Model Comparison", "Dataset Explorer"]
 
-# Load additional measured curves, including reverse/negative-voltage measurements.
-def load_1n4004_combined():
-    fwd = read_csv_safe("data/external/1n4004_forward.csv")
-    rev = read_csv_safe("data/external/1n4004_reverse.csv")
-    frames = []
-    for df in [fwd, rev]:
-        if {"v_meas", "i_meas"}.issubset(df.columns):
-            frames.append(df[["v_meas", "i_meas"]].dropna().rename(columns={"v_meas":"voltage_V", "i_meas":"current_A"}))
-    if frames:
-        return pd.concat(frames, ignore_index=True).drop_duplicates().sort_values("voltage_V")
-    if not main_data.empty:
-        return main_data.rename(columns={"v_meas":"voltage_V", "i_meas":"current_A"}).sort_values("voltage_V")
-    return pd.DataFrame(columns=["voltage_V", "current_A"])
-
-one_n4004 = load_1n4004_combined()
-
-PAGES = ["Home", "Predictor", "Graphs & Data", "Model Comparison"]
 if "page" not in st.session_state:
     st.session_state.page = "Home"
-cols = st.columns([1.5, 1, 1, 1, 1])
-with cols[0]: st.markdown("### ⚡ DiodeLab **AI**")
-for c, p, label in zip(cols[1:], PAGES, ["Home", "Predictor", "Graphs & Data", "Model Comparison"]):
-    with c:
-        if st.button(label, key="nav_"+p, use_container_width=True): st.session_state.page = p
+if "navigation_radio" not in st.session_state:
+    st.session_state.navigation_radio = st.session_state.page
+
+def go_to(page):
+    # Streamlit runs this callback before redrawing the page.
+    st.session_state.page = page
+    st.session_state.navigation_radio = page
+
+def sync_page_from_radio():
+    st.session_state.page = st.session_state.navigation_radio
+
+# Compact top navigation replaces the crowded sidebar.
+nav_cols = st.columns([1.45, 1, 1.25, 1.25, 1.15])
+with nav_cols[0]:
+    st.markdown("<div style='padding:.55rem 0;color:#eaf4ff;font-weight:800;font-size:1.05rem'>⚡ DiodeLab <span style='color:#54d5ff'>AI</span></div>", unsafe_allow_html=True)
+for col, target, label in zip(nav_cols[1:], PAGES, ["⌂  Home", "⚡  Predictor", "◫  Model comparison", "⌁  Dataset"]):
+    with col:
+        st.button(label, key=f"topnav_{target}", use_container_width=True, on_click=go_to, args=(target,))
+
 page = st.session_state.page
 
 if model_errors:
-    with st.expander(f"Model loading notes ({len(model_errors)})", expanded=False):
-        st.caption("A listed model is unavailable to the predictor until its file loads successfully. Graphs of measured data can still work.")
-        for e in model_errors: st.warning(e)
+    with st.expander("Asset loading notes", expanded=False):
+        for error in model_errors:
+            st.warning(error)
 
-# Device-first mapping: model choices are shown only for the matching device/material family.
-def choices_for_device(device, material):
-    if device == "1N4004":
-        return [x for x in ["1N4004 · Random Forest", "1N4004 · Tuned SVR"] if x in models]
-    if material == "gallium nitride":
-        return [x for x in ["GaN · Temperature-aware SVR"] if x in models]
-    if material == "silicon carbide":
-        return [x for x in ["SiC devices · SVR"] if x in models]
-    if material == "silicon":
-        return [x for x in ["Silicon devices · SVR"] if x in models]
-    return []
+valid_data = not data.empty and {"v_meas", "i_meas"}.issubset(data.columns)
+if valid_data:
+    vmin = float(data["v_meas"].min())
+    vmax = float(data["v_meas"].max())
+    imin = float(data["i_meas"].min())
+    imax = float(data["i_meas"].max())
+else:
+    vmin, vmax, imin, imax = 0.0, 0.815, 0.0, 0.05
 
-def get_device_rows(device, material):
-    if device == "1N4004":
-        return one_n4004.copy()
-    if classified.empty:
-        return pd.DataFrame(columns=["voltage_V", "current_A", "temperature_K"])
-    d = classified[(classified["device"].astype(str) == str(device)) & (classified["material"].astype(str) == str(material))].copy()
-    return d
-
-def apply_y_scale(ax, y, scale):
-    y = np.asarray(y, dtype=float)
-    if scale == "Log (positive current only)":
-        positive = y[np.isfinite(y) & (y > 0)]
-        if len(positive): ax.set_yscale("log")
-        else: ax.text(.5,.5,"No positive current values to display on log scale",transform=ax.transAxes,ha="center")
-    elif scale == "Symmetric log (shows zero/negative current)":
-        ax.set_yscale("symlog", linthresh=1e-9)
-
-def style_plot(ax, title, y_label, scale, yvalues):
-    ax.set_title(title, color="#eaf4ff")
-    ax.set_xlabel("Voltage (V)", color="#a9c4df")
-    ax.set_ylabel(y_label, color="#a9c4df")
+# ---------- Shared plotting helper ----------
+def draw_iv_curve(show_models=False, selected_model=None, highlight_voltage=None):
+    fig, ax = plt.subplots(figsize=(9, 4.8))
+    fig.patch.set_facecolor("#081326")
+    ax.set_facecolor("#081326")
+    if valid_data:
+        ax.scatter(data["v_meas"], data["i_meas"], s=19, alpha=.78, label="Measured data")
+    if show_models and models and valid_data:
+        xs = np.linspace(vmin, vmax, 350).reshape(-1, 1)
+        for label, model in models.items():
+            if selected_model and label != selected_model:
+                continue
+            try:
+                ys = np.asarray(model.predict(xs)).reshape(-1)
+                ax.plot(xs.reshape(-1), ys, linewidth=2.2, label=f"{label} prediction")
+            except Exception:
+                pass
+    if highlight_voltage is not None:
+        ax.axvline(highlight_voltage, linestyle="--", linewidth=1.3, alpha=.8, label=f"Input: {highlight_voltage:.3f} V")
+    ax.set_title("1N4004 forward-bias I–V characteristics", color="#eaf4ff", pad=12, fontsize=13)
+    ax.set_xlabel("Measured voltage (V)", color="#a9c4df")
+    ax.set_ylabel("Measured current (A)", color="#a9c4df")
     ax.tick_params(colors="#a9c4df")
-    ax.grid(True, alpha=.25)
-    for sp in ax.spines.values(): sp.set_color("#294563")
-    apply_y_scale(ax, yvalues, scale)
+    for spine in ax.spines.values():
+        spine.set_color("#294563")
+    ax.grid(True, alpha=.25, color="#52708e")
+    ax.legend(facecolor="#10223b", edgecolor="#294563", labelcolor="#eaf4ff")
+    fig.tight_layout()
+    st.pyplot(fig, use_container_width=True)
+    plt.close(fig)
 
-if page == "Home":
-    st.markdown("# Understand the diode. Predict its current.")
-    st.write("Explore measured current–voltage (I–V) data across diode devices, semiconductor materials, and available temperatures. Select a device first so the model choices and graphs stay relevant to that device.")
-    a,b,c = st.columns(3)
-    a.metric("Classified measurements", f"{len(classified):,}" if not classified.empty else "Not loaded")
-    b.metric("Devices in classified data", f"{classified['device'].nunique():,}" if not classified.empty else "—")
-    c.metric("Models loaded", len(models))
-    st.info("The original 1N4004 dataset is one experiment. The GaN temperature-aware model is a separate experiment. A temperature field does not affect models trained with voltage alone.")
-    if not main_data.empty:
-        st.subheader("Original 1N4004 forward-bias measurements")
-        scale = st.radio("Current-axis scale", ["Linear", "Log (positive current only)", "Symmetric log (shows zero/negative current)"], horizontal=True, key="home_scale")
-        fig, ax = plt.subplots(figsize=(10,4.5)); fig.patch.set_facecolor("#081326"); ax.set_facecolor("#081326")
-        ax.scatter(main_data.v_meas, main_data.i_meas, s=18, label="Measured forward-bias data")
-        style_plot(ax, "1N4004 forward-bias I–V curve", "Current (A)", scale, main_data.i_meas)
-        ax.legend(); fig.tight_layout(); st.pyplot(fig); plt.close(fig)
+# ---------- HOME ----------
+if st.session_state.page == "Home":
+    st.markdown("""
+    <div class="hero">
+      <span class="eyebrow">Experimental semiconductor data · Machine learning</span>
+      <h1>Understand the diode.<br><span class="gradient-text">Predict its current.</span></h1>
+      <p>Explore how a 1N4004 diode responds to forward voltage. Compare regression models trained on measured I–V data, make predictions, and inspect the dataset in one interactive workspace.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    st.write("")
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.markdown(f'<div class="metric-card"><div class="metric-label">Clean measurements</div><div class="metric-value">{len(data) if valid_data else "—"}</div><div class="metric-note">After removing missing rows</div></div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown(f'<div class="metric-card"><div class="metric-label">Voltage range</div><div class="metric-value">{vmin:.3f} V</div><div class="metric-note">to {vmax:.3f} V</div></div>', unsafe_allow_html=True)
+    with c3:
+        st.markdown(f'<div class="metric-card"><div class="metric-label">Models available</div><div class="metric-value">{len(models)}</div><div class="metric-note">Saved trained estimators</div></div>', unsafe_allow_html=True)
+    with c4:
+        st.markdown('<div class="metric-card"><div class="metric-label">Prediction type</div><div class="metric-value">I–V</div><div class="metric-note">Voltage in, current out</div></div>', unsafe_allow_html=True)
 
-elif page == "Predictor":
-    st.title("Device-first current predictor")
-    st.write("First select the device. Then choose a model available for that device/material. The website does not offer a model for a device when no matching saved model is available.")
-    if classified.empty:
-        st.error("The classified dataset is missing or has unexpected columns.")
+    st.write("")
+    st.markdown('<div class="section-kicker">Explore the workspace</div>', unsafe_allow_html=True)
+    a, b, c = st.columns(3)
+    with a:
+        st.markdown('<div class="content-card"><h3>⚡ Predictor</h3><p class="small-muted">Enter a voltage and estimate forward current using a saved model.</p></div>', unsafe_allow_html=True)
+        st.button("Open predictor →", key="home_predictor", use_container_width=True,
+                  on_click=go_to, args=("Predictor",))
+    with b:
+        st.markdown('<div class="content-card"><h3>📊 Model comparison</h3><p class="small-muted">Review held-out test metrics and compare prediction curves.</p></div>', unsafe_allow_html=True)
+        st.button("Compare models →", key="home_compare", use_container_width=True,
+                  on_click=go_to, args=("Model Comparison",))
+    with c:
+        st.markdown('<div class="content-card"><h3>🧪 Dataset explorer</h3><p class="small-muted">Filter measurements, inspect rows, and download the cleaned data.</p></div>', unsafe_allow_html=True)
+        st.button("Explore data →", key="home_data", use_container_width=True,
+                  on_click=go_to, args=("Dataset Explorer",))
+    st.write("")
+    st.markdown("### Measured diode response")
+    if valid_data:
+        draw_iv_curve()
     else:
-        device_material = classified[["device", "material"]].drop_duplicates().sort_values(["material", "device"])
-        device_material = pd.concat([pd.DataFrame([{"device":"1N4004", "material":"silicon (1N4004)"}]), device_material], ignore_index=True).drop_duplicates()
-        labels = [f"{r.device} — {r.material}" for r in device_material.itertuples()]
-        selected_label = st.selectbox("1. Select device", labels, key="predict_device")
-        selected_row = device_material.iloc[labels.index(selected_label)]
-        device, material = str(selected_row.device), str(selected_row.material)
-        model_choices = choices_for_device(device, material)
-        if not model_choices:
-            st.warning("No compatible saved prediction model is currently available for this exact device/material. You can still inspect its measured graph under Graphs & Data.")
+        st.error("The dataset could not be loaded. Check that diode_iv_data.csv is in the repository root.")
+
+# ---------- PREDICTOR ----------
+
+elif st.session_state.page == "Predictor":
+    st.markdown(
+        '<div class="section-kicker">Interactive inference</div>',
+        unsafe_allow_html=True,
+    )
+    st.title("Diode current predictor")
+    st.write(
+        "Choose a trained model and enter a voltage. "
+        "Predictions outside the measured voltage range may be unreliable."
+    )
+
+    if not models:
+        st.error(
+            "No saved models loaded. Confirm the model .joblib files "
+            "are in the repository."
+        )
+    else:
+        model_name = st.selectbox("Choose a model", list(models.keys()))
+
+        # No min_value/max_value: the user can enter any voltage.
+        # Predictions outside the training range are extrapolations and may be unreliable.
+        voltage = st.number_input(
+            "Measured voltage (V)",
+            value=0.70,
+            step=0.005,
+            format="%.5f",
+        )
+
+       
+        
+        if model_name == "Silicon SVR":
+            device_options = [
+                "1N11877R",
+                "1N1190",
+                "1N3913",
+                "45L120",
+                "BYX661000",
+                "BZW12360",
+                "BZW1336",
+                "BZW1347",
+                "MBR4035",
+            ]
+        elif model_name == "SiC SVR":
+            device_options = [
+                "C6D20065A",
+                "FFSH3065B",
+                "FFSH3065B-F085",
+                "STPSC12065DY",
+            ]
         else:
-            model_name = st.selectbox("2. Select a model trained for this device/material family", model_choices, key="predict_model")
-            rows = get_device_rows(device, material)
-            if device == "1N4004":
-                voltage_min, voltage_max = float(one_n4004.voltage_V.min()), float(one_n4004.voltage_V.max())
-                temps = []
-            else:
-                voltage_min, voltage_max = float(rows.voltage_V.min()), float(rows.voltage_V.max())
-                temps = sorted(rows.temperature_K.unique().tolist())
-            if "GaN" in model_name:
-                temperature = st.number_input("3. Temperature (K)", min_value=40.0, max_value=400.0, value=300.0, step=10.0)
-                voltage_min = max(voltage_min, -1.499998); voltage_max = min(voltage_max, 0.660000)
-            elif model_name in ["Silicon devices · SVR", "SiC devices · SVR"]:
-                if temps:
-                    temperature = st.selectbox("3. Temperature (K)", temps, index=temps.index(293.0) if 293.0 in temps else 0)
-                else: temperature = 293.0
-            else:
-                temperature = 293.0
-            voltage = st.number_input("Voltage (V)", min_value=float(voltage_min), max_value=float(voltage_max), value=float(np.clip(0.5, voltage_min, voltage_max)), step=0.005, format="%.6f")
-            st.caption(f"Measured voltage range for this selected dataset: {voltage_min:.5g} V to {voltage_max:.5g} V. This control stays within the available range; it does not imply accuracy at every point.")
-            if st.button("Predict current", type="primary"):
-                try:
-                    model = models[model_name]
-                    if model_name.startswith("1N4004"):
-                        pred = float(np.asarray(model.predict(pd.DataFrame({"v_meas":[voltage]}))).reshape(-1)[0])
-                    elif "GaN" in model_name:
-                        pred = float(np.asarray(model.predict(pd.DataFrame([{"voltage_V":voltage,"temperature_K":temperature}]))).reshape(-1)[0])
+            device_options = [
+                "1N4004",
+                "Generic silicon",
+                "Silicon carbide",
+                "GaN Schottky",
+            ]
+
+        device = st.selectbox("Device", device_options)
+
+
+        temperature = st.number_input(
+            "Temperature (K)",
+            min_value=1.0,
+            max_value=500.0,
+            value=293.0,
+            step=1.0,
+        )
+        
+        if model_name in ["Silicon SVR", "SiC SVR"]:
+            if not 77.0 <= temperature <= 293.0:
+                st.warning(
+                    "The SVR models were trained on data from "
+                    "77 K to 293 K. Predictions outside this "
+                    "temperature range may be unreliable."
+                )
+
+
+        
+        
+        
+        
+        if st.button("Predict current", key="predict_button"):
+            # Clear the previous result before attempting a new prediction.
+            st.session_state.pop("last_prediction", None)
+
+            try:
+                if model_name in ["Silicon SVR", "SiC SVR"]:
+                    if training_data.empty:
+                        st.error("The training dataset could not be loaded.")
                     else:
-                        # These models were trained with device, voltage and temperature features.
-                        pred_raw = float(np.asarray(model.predict(pd.DataFrame([{"device":device,"voltage_V":voltage,"temperature_K":temperature}]))).reshape(-1)[0])
-                        pred = 10.0 ** pred_raw
-                    st.session_state["prediction_result"] = {"device":device,"material":material,"model":model_name,"voltage":voltage,"temperature":temperature,"current":pred}
-                except Exception as exc:
-                    st.error(f"Prediction could not be calculated with this saved model: {type(exc).__name__}: {exc}")
-            result = st.session_state.get("prediction_result")
-            if result and result["device"] == device and result["model"] == model_name and result["voltage"] == voltage and result["temperature"] == temperature:
-                st.subheader("Prediction result")
-                st.metric("Predicted current", f"{result['current']:.6g} A")
-                st.caption("This is a model estimate, not a physical measurement. It is valid only for the model's training setup and supported input format.")
-                # Device-specific graph; negative voltages are retained if present in the selected data.
-                graph_rows = rows.copy()
-                if device != "1N4004" and "temperature_K" in graph_rows.columns:
-                    graph_rows = graph_rows[graph_rows.temperature_K == temperature]
-                if not graph_rows.empty:
-                    scale = st.radio("Current-axis scale", ["Linear", "Log (positive current only)", "Symmetric log (shows zero/negative current)"], horizontal=True, key="pred_scale")
-                    fig, ax = plt.subplots(figsize=(10,4.8)); fig.patch.set_facecolor("#081326"); ax.set_facecolor("#081326")
-                    ax.scatter(graph_rows.voltage_V, graph_rows.current_A, s=20, alpha=.8, label="Measured data")
-                    ax.axvline(voltage, linestyle="--", label=f"Input voltage: {voltage:g} V")
-                    style_plot(ax, f"{device} measured I–V data at {temperature:g} K" if device != "1N4004" else "1N4004 measured I–V data", "Current (A)", scale, graph_rows.current_A)
-                    ax.legend(); fig.tight_layout(); st.pyplot(fig); plt.close(fig)
+                        device_data = training_data[
+                            (training_data["device"] == device)
+                            & (training_data["temperature_K"] == temperature)
+                            & (training_data["current_A"] > 0)
+                        ]
 
-elif page == "Graphs & Data":
-    st.title("Measured I–V graphs")
-    st.write("Choose the device first. The graphs use the actual measured data available in this repository, including negative voltage when the selected dataset contains it.")
-    options = []
-    options.append(("1N4004", "silicon (1N4004)"))
-    if not classified.empty:
-        options += list(classified[["device","material"]].drop_duplicates().sort_values(["material","device"]).itertuples(index=False, name=None))
-    options = list(dict.fromkeys((str(a),str(b)) for a,b in options))
-    labels = [f"{a} — {b}" for a,b in options]
-    choice = st.selectbox("1. Select device", labels, key="graph_device")
-    device, material = options[labels.index(choice)]
-    rows = get_device_rows(device, material)
-    if device != "1N4004" and not rows.empty:
-        available_temps = sorted(rows.temperature_K.unique().tolist())
-        temp = st.selectbox("2. Select measured temperature (K)", available_temps, index=available_temps.index(293.0) if 293.0 in available_temps else 0, key="graph_temp")
-        plot_rows = rows[rows.temperature_K == temp].copy()
-        st.caption(f"{len(plot_rows)} measurements at {temp:g} K; voltage range {plot_rows.voltage_V.min():.5g} to {plot_rows.voltage_V.max():.5g} V.")
-    else:
-        plot_rows = rows.copy()
-        st.caption("1N4004 graph combines available forward- and reverse-bias measurements, so negative voltages are included where present.")
-    scale = st.radio("3. Current-axis scale", ["Linear", "Log (positive current only)", "Symmetric log (shows zero/negative current)"], horizontal=True, key="graph_scale")
-    if plot_rows.empty:
-        st.warning("No measurements were found for this device selection.")
-    else:
-        plot_rows = plot_rows.sort_values("voltage_V")
-        fig, ax = plt.subplots(figsize=(11,5)); fig.patch.set_facecolor("#081326"); ax.set_facecolor("#081326")
-        ax.scatter(plot_rows.voltage_V, plot_rows.current_A, s=20, alpha=.82, label="Measured data")
-        style_plot(ax, f"{device} ({material}) I–V characteristics", "Current (A)", scale, plot_rows.current_A)
-        ax.legend(); fig.tight_layout(); st.pyplot(fig); plt.close(fig)
-        st.dataframe(plot_rows, use_container_width=True, hide_index=True)
-        st.download_button("Download displayed measurements", plot_rows.to_csv(index=False).encode("utf-8"), file_name="selected_iv_measurements.csv", mime="text/csv")
-        if plot_rows.voltage_V.min() < 0:
-            st.success("Negative-voltage measurements are present in this graph.")
+                        if device_data.empty:
+                            st.error(
+                                f"No measured data is available for {device} "
+                                f"at exactly {temperature:g} K. "
+                                "Choose a temperature with measured data."
+                            )
+                        else:
+                            min_voltage = float(
+                                device_data["voltage_V"].min()
+                            )
+                            max_voltage = float(
+                                device_data["voltage_V"].max()
+                            )
+
+                            model_input = pd.DataFrame([{
+                                "device": device,
+                                "voltage_V": voltage,
+                                "temperature_K": temperature,
+                            }])
+
+                            log_current = float(
+                                models[model_name].predict(model_input)[0]
+                            )
+                            current = 10 ** log_current
+
+                            st.session_state.last_prediction = {
+                                "model": model_name,
+                                "device": device,
+                                "voltage": voltage,
+                                "temperature": temperature,
+                                "current": current,
+                            }
+
+                else:
+                    # Original models use voltage as their only input.
+                    current = float(
+                        np.asarray(
+                            models[model_name].predict(
+                                np.array([[voltage]])
+                            )
+                        ).reshape(-1)[0]
+                    )
+
+                    if not np.isfinite(current):
+                        st.error("The model returned a non-finite prediction.")
+                    else:
+                        st.session_state.last_prediction = {
+                            "model": model_name,
+                            "device": device,
+                            "voltage": voltage,
+                            "temperature": temperature,
+                            "current": current,
+                        }
+
+            except Exception as exc:
+                st.session_state.pop("last_prediction", None)
+                st.error(f"Prediction failed: {exc}")
+
+        # Show a result only when it matches the current inputs.
+        result = st.session_state.get("last_prediction")
+
+        if result and (
+            result["model"] != model_name
+            or result["device"] != device
+            or result["voltage"] != voltage
+            or result["temperature"] != temperature
+        ):
+            result = None
+
+        if result:
+            st.markdown("### Prediction result")
+
+            m1, m2, m3 = st.columns(3)
+            m1.metric(
+                "Predicted current",
+                f'{result["current"]:.6g} A',
+            )
+            m2.metric(
+                "Equivalent current",
+                f'{result["current"] * 1000:.6g} mA',
+            )
+            m3.metric("Model", result["model"])
+
+            if result["model"] in ["Silicon SVR", "SiC SVR"]:
+                st.info(
+                    f"Estimate for {result['device']} at "
+                    f"{result['temperature']:g} K. "
+                    "The voltage is within the measured range for this "
+                    "device and temperature, but the estimate is not "
+                    "a guaranteed physical measurement."
+                )
+            elif valid_data and not (
+                vmin <= result["voltage"] <= vmax
+            ):
+                st.warning(
+                    f'{result["voltage"]:.5f} V is outside the original '
+                    f"1N4004 measured range ({vmin:.5f}–{vmax:.5f} V). "
+                    "Treat this prediction as an extrapolation."
+                )
+            else:
+                st.info(
+                    "This is a model estimate, not a guaranteed "
+                    "physical measurement."
+                )
+
+            with st.expander("How should I interpret this prediction?"):
+                st.write(f"Model: {result['model']}")
+                st.write(f"Device: {result['device']}")
+                st.write(f"Voltage: {result['voltage']:.5f} V")
+                st.write(f"Temperature: {result['temperature']:g} K")
+                st.write(
+                    f"Estimated current: {result['current']:.6g} A "
+                    f"({result['current'] * 1000:.6g} mA)"
+                )
+                st.write(
+                    "A prediction inside the measured voltage range can "
+                    "still be inaccurate. These models are estimates, "
+                    "not substitutes for physical measurements."
+                )
+
+
+
+
+
+        st.markdown("### Interactive I–V graph")
+        st.caption(
+            "Select datasets using the checkboxes. The graph shows negative and positive "
+            "voltages on the same axis. The current axis uses a symmetric-log scale so "
+            "small reverse leakage currents and large forward currents can both be seen. "
+            "Changing voltage moves the marker; it does not change measured data. "
+            "Reverse-bias measurements are not proof that a prediction model was trained "
+            "for reverse bias."
+        )
+
+        # Checkboxes are placed above the graph as requested.
+        compare_candidates = [
+            "1N4004 forward bias",
+            "1N4004 reverse bias",
+            "1N4004 reverse bias (10 µA range)",
+            "1N5229B Zener reverse bias",
+            "SB560 forward bias",
+            "SB560 reverse bias",
+            "Cryogenic diode measurements",
+            "GaN Schottky measurements",
+        ]
+        check_cols = st.columns(4)
+        selected_curves = []
+        for idx, dataset_name in enumerate(compare_candidates):
+            with check_cols[idx % 4]:
+                default_checked = dataset_name in (
+                    ["1N4004 forward bias"] if voltage >= 0 else ["1N4004 reverse bias"]
+                )
+                if st.checkbox(dataset_name, value=default_checked, key=f"curve_check_{dataset_name}"):
+                    selected_curves.append(dataset_name)
+
+        fig, ax = plt.subplots(figsize=(10, 5.2))
+        fig.patch.set_facecolor("#081326")
+        ax.set_facecolor("#081326")
+        plotted_any = False
+
+        for dataset_name in selected_curves:
+            frame = read_dataset_csv(DATASET_FILES[dataset_name])
+            v_col, i_col = voltage_current_columns(frame)
+            if v_col is None:
+                continue
+            curve = frame[[v_col, i_col]].copy()
+            curve[v_col] = pd.to_numeric(curve[v_col], errors="coerce")
+            curve[i_col] = pd.to_numeric(curve[i_col], errors="coerce")
+            curve = curve.dropna().sort_values(v_col)
+            if dataset_name == "Cryogenic diode measurements" and "temperature_K" in frame.columns:
+                # Show the nearest temperature represented in this dataset.
+                temp_vals = pd.to_numeric(frame["temperature_K"], errors="coerce").dropna().unique()
+                if len(temp_vals):
+                    nearest_temp = min(temp_vals, key=lambda t: abs(float(t) - temperature))
+                    temp_mask = pd.to_numeric(frame["temperature_K"], errors="coerce") == nearest_temp
+                    sub = frame.loc[temp_mask, [v_col, i_col]].copy()
+                    sub[v_col] = pd.to_numeric(sub[v_col], errors="coerce")
+                    sub[i_col] = pd.to_numeric(sub[i_col], errors="coerce")
+                    curve = sub.dropna().sort_values(v_col)
+                    ax.plot(curve[v_col], curve[i_col], linewidth=1.8,
+                            label=f"{dataset_name} ({nearest_temp:g} K)")
+                else:
+                    ax.plot(curve[v_col], curve[i_col], linewidth=1.8, label=dataset_name)
+            elif dataset_name == "GaN Schottky measurements" and "temperature_K" in frame.columns:
+                temp_vals = pd.to_numeric(frame["temperature_K"], errors="coerce").dropna().unique()
+                if len(temp_vals):
+                    nearest_temp = min(temp_vals, key=lambda t: abs(float(t) - temperature))
+                    sub = frame.loc[pd.to_numeric(frame["temperature_K"], errors="coerce") == nearest_temp, [v_col, i_col]].copy()
+                    sub[v_col] = pd.to_numeric(sub[v_col], errors="coerce")
+                    sub[i_col] = pd.to_numeric(sub[i_col], errors="coerce")
+                    curve = sub.dropna().sort_values(v_col)
+                    ax.plot(curve[v_col], curve[i_col], linewidth=1.8,
+                            label=f"{dataset_name} ({nearest_temp:g} K)")
+                else:
+                    ax.plot(curve[v_col], curve[i_col], linewidth=1.8, label=dataset_name)
+            else:
+                ax.plot(curve[v_col], curve[i_col], linewidth=1.8, label=dataset_name)
+            plotted_any = plotted_any or not curve.empty
+
+        result_for_graph = st.session_state.get("last_prediction")
+        result_matches_inputs = bool(
+            result_for_graph
+            and result_for_graph.get("model") == model_name
+            and result_for_graph.get("device") == device
+            and result_for_graph.get("voltage") == voltage
+            and result_for_graph.get("temperature") == temperature
+        )
+        if result_matches_inputs and np.isfinite(result_for_graph["current"]):
+            ax.scatter(
+                [voltage], [result_for_graph["current"]],
+                s=95, marker="*", zorder=8, color="#ffcc66",
+                edgecolors="#fff2c2", linewidths=0.8,
+                label=f"Predicted point ({voltage:.4g} V)",
+            )
+        ax.axvline(voltage, linestyle="--", linewidth=1.2, alpha=.7,
+                   color="#9dbcf4", label=f"Selected voltage: {voltage:.4g} V")
+        ax.set_title("Diode I–V characteristics: forward and reverse regions", color="#eaf4ff", pad=12)
+        ax.set_xlabel("Voltage (V)  |  negative = reverse bias, positive = forward bias", color="#a9c4df")
+        ax.set_ylabel("Current (A, symmetric-log scale)", color="#a9c4df")
+        # A symmetric log scale preserves the sign of current and makes tiny
+        # reverse leakage currents visible alongside larger forward currents.
+        ax.set_yscale("symlog", linthresh=1e-9)
+        ax.tick_params(colors="#a9c4df")
+        for spine in ax.spines.values():
+            spine.set_color("#294563")
+        ax.grid(True, alpha=.25, color="#52708e")
+        if plotted_any or result_matches_inputs:
+            ax.legend(facecolor="#10223b", edgecolor="#294563", labelcolor="#eaf4ff", fontsize=8)
         else:
-            st.info("This selected device/temperature dataset contains no negative-voltage measurements. Select another device or temperature to inspect reverse-bias data where available.")
+            ax.set_xlim(-1.0, 1.0)
+            ax.set_ylim(-1e-6, 1e-6)
+            ax.text(0.5, 0.5, "Select one or more datasets above to display curves",
+                    transform=ax.transAxes, ha="center", color="#b9cce3")
+        fig.tight_layout()
+        st.pyplot(fig, use_container_width=True)
+        plt.close(fig)
 
-elif page == "Model Comparison":
+
+# ---------- MODEL COMPARISON ----------
+elif st.session_state.page == "Model Comparison":
+    st.markdown('<div class="section-kicker">Evaluation</div>', unsafe_allow_html=True)
     st.title("Model comparison")
-    st.write("These are previously recorded test metrics for the original 1N4004 experiment. They are not recalculated by this website.")
+    st.write(
+    "These are previously recorded held-out random-test results for the "
+    "1N4004 dataset. The metrics are displayed from saved values rather "
+    "than recalculated on each app run. Lower MAE and RMSE are better; "
+    "R² closer to 1 indicates a better fit on this test set."
+    )
     metrics = pd.DataFrame([
-        {"Model":"Random Forest","MAE (A)":0.0001714702,"RMSE (A)":0.0004224828,"R²":0.9989055},
-        {"Model":"Tuned SVR","MAE (A)":0.0002631377,"RMSE (A)":0.0003458506,"R²":0.9992665},
-        {"Model":"Linear Regression","MAE (A)":0.006944,"RMSE (A)":0.009559,"R²":0.439677},
-        {"Model":"Mean baseline","MAE (A)":0.008777,"RMSE (A)":0.012815,"R²":-0.007052},
+        {"Model": "Random Forest", "MAE (A)": 0.0001714702, "RMSE (A)": 0.0004224828, "R²": 0.9989055},
+        {"Model": "Tuned SVR", "MAE (A)": 0.0002631377, "RMSE (A)": 0.0003458506, "R²": 0.9992665},
+        {"Model": "Linear Regression", "MAE (A)": 0.006944, "RMSE (A)": 0.009559, "R²": 0.439677},
+        {"Model": "Mean baseline", "MAE (A)": 0.008777, "RMSE (A)": 0.012815, "R²": -0.007052},
     ])
     st.dataframe(metrics, use_container_width=True, hide_index=True)
-    a,b = st.columns(2)
-    with a: st.subheader("MAE (lower is better)"); st.bar_chart(metrics.set_index("Model")[["MAE (A)"]])
-    with b: st.subheader("RMSE (lower is better)"); st.bar_chart(metrics.set_index("Model")[["RMSE (A)"]])
-    st.warning("These scores came from a random holdout within one measured voltage sweep. They do not establish accuracy for other devices, temperatures, or voltage ranges. A separate voltage-ordered experiment showed poor extrapolation.")
-    st.subheader("What the current scale means")
-    st.write("Linear scale shows equal current increments. Log scale shows orders of magnitude but can display only positive current. Symmetric-log scale shows negative, zero, and positive current, with a linear region near zero.")
+    left, right = st.columns(2)
+    with left:
+        st.markdown("#### Mean absolute error")
+        st.bar_chart(metrics.set_index("Model")[["MAE (A)"]])
+    with right:
+        st.markdown("#### Root mean squared error")
+        st.bar_chart(metrics.set_index("Model")[["RMSE (A)"]])
+    st.info("Important limitation: these scores come from a random holdout within one measured voltage sweep. Nearby measurements may be correlated, and these results do not establish generalization to other diodes, temperatures, or measurement setups.")
+    if valid_data and models:
+        st.markdown("### Prediction curves across the measured range")
+        selected = st.selectbox("Choose curve to display", list(models.keys()), key="comparison_model")
+        draw_iv_curve(show_models=True, selected_model=selected)
+
+# ---------- DATASET EXPLORER ----------
+elif st.session_state.page == "Dataset Explorer":
+    st.markdown('<div class="section-kicker">Experimental measurements</div>', unsafe_allow_html=True)
+    st.title("Dataset explorer")
+    available = {
+        name: path for name, path in DATASET_FILES.items()
+        if os.path.exists(path)
+    }
+    if not available:
+        st.error("No CSV datasets were found in the expected repository folders.")
+    else:
+        chosen = st.selectbox("Choose a dataset", list(available.keys()))
+        frame = read_dataset_csv(available[chosen])
+        if frame.empty:
+            st.error("This CSV could not be read or contains no rows.")
+        else:
+            st.write(f"**{chosen}** — {len(frame):,} rows and {len(frame.columns)} columns.")
+            st.dataframe(frame.head(500), use_container_width=True, hide_index=True)
+            st.download_button(
+                "Download this dataset",
+                frame.to_csv(index=False).encode("utf-8"),
+                file_name=os.path.basename(available[chosen]),
+                mime="text/csv",
+            )
+            v_col, i_col = voltage_current_columns(frame)
+            if v_col is not None:
+                plot_frame = frame[[v_col, i_col]].copy()
+                plot_frame[v_col] = pd.to_numeric(plot_frame[v_col], errors="coerce")
+                plot_frame[i_col] = pd.to_numeric(plot_frame[i_col], errors="coerce")
+                plot_frame = plot_frame.dropna().sort_values(v_col)
+                st.markdown("### I–V curve")
+                fig, ax = plt.subplots(figsize=(10, 4.8))
+                fig.patch.set_facecolor("#081326")
+                ax.set_facecolor("#081326")
+                ax.plot(plot_frame[v_col], plot_frame[i_col], marker=".", markersize=3, linewidth=1.5, label=chosen)
+                ax.set_xlabel("Voltage (V)", color="#a9c4df")
+                ax.set_ylabel("Current (A)", color="#a9c4df")
+                ax.set_title(f"{chosen}: measured I–V curve", color="#eaf4ff")
+                ax.tick_params(colors="#a9c4df")
+                for spine in ax.spines.values():
+                    spine.set_color("#294563")
+                ax.grid(True, alpha=.25, color="#52708e")
+                ax.legend(facecolor="#10223b", edgecolor="#294563", labelcolor="#eaf4ff")
+                fig.tight_layout()
+                st.pyplot(fig, use_container_width=True)
+                plt.close(fig)
+            else:
+                st.info("This dataset does not contain a recognized voltage/current column pair.")
 
 st.markdown("---")
-st.caption("DiodeLab AI · Educational machine-learning demonstration. Measured data and model estimates are shown separately; predictions are not physical measurements.")
+st.markdown('<p class="small-muted">DiodeLab AI · Educational ML demonstration · Predictions are estimates based on one measured 1N4004 voltage sweep.</p>', unsafe_allow_html=True)
+
 
