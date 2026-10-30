@@ -195,12 +195,26 @@ data = load_data()
 training_data = load_training_data()
 
 
+
 PAGES = ["Home", "Predictor", "Model Comparison", "Dataset Explorer"]
 
 if "page" not in st.session_state:
     st.session_state.page = "Home"
 
-nav_cols = st.columns(5)
+def go_to(page):
+    st.session_state.page = page
+
+st.markdown("""
+<style>
+/* Give the top navigation its own clear stacking layer */
+div[data-testid="stHorizontalBlock"]:has(button[key^="topnav_"]) {
+    position: relative;
+    z-index: 20;
+}
+</style>
+""", unsafe_allow_html=True)
+
+nav_cols = st.columns([1.45, 1, 1.25, 1.25, 1.15], gap="small")
 
 with nav_cols[0]:
     st.markdown(
@@ -216,15 +230,16 @@ for col, target, label in zip(
     ["⌂ Home", "⚡ Predictor", "◫ Model comparison", "⌁ Dataset"],
 ):
     with col:
-        if st.button(
+        st.button(
             label,
             key=f"topnav_{target}",
             use_container_width=True,
-        ):
-            st.session_state.page = target
-            st.rerun()
+            on_click=go_to,
+            args=(target,),
+        )
 
 page = st.session_state.page
+
 
 
 
