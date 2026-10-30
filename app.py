@@ -37,7 +37,26 @@ p, label, .stMarkdown { color:#b9cce3; }
 .section-kicker { color:#5bd5ff; text-transform:uppercase; font-size:.76rem; font-weight:800; letter-spacing:.14em; }.small-muted { color:#a8bfd9; font-size:.9rem; }
 div.stButton > button, div[data-testid="stDownloadButton"] button { border-radius:10px; border:1px solid #168de0; background:linear-gradient(100deg,#0878db,#05a6cf); color:#fff !important; font-weight:700; padding:.72rem 1rem; transition:transform .2s ease,filter .2s ease; }
 div.stButton > button p, div[data-testid="stDownloadButton"] button p { color:#fff !important; font-weight:700; }
-div.stButton > button:hover, div[data-testid="stDownloadButton"] button:hover { filter:brightness(1.15); transform:translateY(-2px); color:#fff !important; border-color:#5bd5ff; }
+div.stButton > button:hover,
+div[data-testid="stDownloadButton"] button:hover {
+    filter: brightness(1.12);
+    color: #fff !important;
+    border-color: #5bd5ff;
+}
+
+/* Keep button positions stable while clicking */
+div.stButton > button,
+div[data-testid="stDownloadButton"] button {
+    transform: none !important;
+    transition: filter 0.15s ease, border-color 0.15s ease;
+    cursor: pointer;
+}
+
+/* Make keyboard focus visible without moving the button */
+div.stButton > button:focus-visible {
+    outline: 2px solid #5bd5ff;
+    outline-offset: 2px;
+}
 [data-testid="stMetric"] { background:#0c1c33; border:1px solid #203b5d; padding:1rem; border-radius:14px; }
 [data-testid="stDataFrame"] { border:1px solid #203b5d; border-radius:12px; overflow:hidden; }
 div[data-baseweb="select"] > div, div[data-baseweb="input"] > div { background:#0c1c33; border-color:#315274; color:#eaf4ff; }
