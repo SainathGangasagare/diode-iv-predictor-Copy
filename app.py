@@ -233,7 +233,7 @@ def draw_iv_curve(show_models=False, selected_model=None, highlight_voltage=None
     plt.close(fig)
 
 # ---------- HOME ----------
-```python
+
 if st.session_state.page == "Home":
     st.markdown("""
     <div class="hero">
