@@ -13,6 +13,18 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# Fix top navigation button click area 
+div[data-testid="stHorizontalBlock"] div.stButton {
+    position: relative;
+    z-index: 10;
+}
+
+div[data-testid="stHorizontalBlock"] div.stButton > button {
+    position: relative;
+    z-index: 11;
+    pointer-events: auto;
+}
+
 # ---------- Theme and styling ----------
 st.markdown("""
 <style>
