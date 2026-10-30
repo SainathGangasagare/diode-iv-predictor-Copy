@@ -316,7 +316,7 @@ if st.session_state.page == "Home":
             on_click=go_to,
             args=("Dataset Explorer",)
         )
-```
+
 # ---------- PREDICTOR ----------
 
 elif st.session_state.page == "Predictor":
