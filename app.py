@@ -87,23 +87,39 @@ def load_models():
     loaded = {}
     errors = []
 
-    for label, filename in [
+    model_files = [
         ("Random Forest", "random_forest_model.joblib"),
         ("Tuned SVR", "tuned_svr_model.joblib"),
+
+        # Older models — keep these for compatibility.
         ("Silicon SVR", "trained_models/silicon_svr.joblib"),
         ("SiC SVR", "trained_models/silicon_carbide_svr.joblib"),
-    ]:
+
+        # New multi-temperature models.
+        (
+            "Silicon Multi-Temperature SVR",
+            "trained_models/silicon_multi_temperature_svr.joblib",
+        ),
+        (
+            "SiC Multi-Temperature SVR",
+            "trained_models/silicon_carbide_multi_temperature_svr.joblib",
+        ),
+        (
+            "GaN Multi-Temperature SVR",
+            "trained_models/gallium_nitride_multi_temperature_svr.joblib",
+        ),
+    ]
+
+    for label, filename in model_files:
         if os.path.exists(filename):
             try:
                 loaded[label] = joblib.load(filename)
             except Exception as exc:
-                errors.append(f"{filename}: {exc}")
+                errors.append(f"Could not load {filename}: {exc}")
         else:
             errors.append(f"Missing file: {filename}")
 
     return loaded, errors
-
-
 @st.cache_data
 def load_data():
     path = "diode_iv_data.csv"
