@@ -87,39 +87,26 @@ def load_models():
     loaded = {}
     errors = []
 
-    model_files = [
+    for label, filename in [
         ("Random Forest", "random_forest_model.joblib"),
         ("Tuned SVR", "tuned_svr_model.joblib"),
-
-        # Older models — keep these for compatibility.
         ("Silicon SVR", "trained_models/silicon_svr.joblib"),
         ("SiC SVR", "trained_models/silicon_carbide_svr.joblib"),
-
-        # New multi-temperature models.
-        (
-            "Silicon Multi-Temperature SVR",
-            "trained_models/silicon_multi_temperature_svr.joblib",
-        ),
-        (
-            "SiC Multi-Temperature SVR",
-            "trained_models/silicon_carbide_multi_temperature_svr.joblib",
-        ),
-        (
-            "GaN Multi-Temperature SVR",
-            "trained_models/gallium_nitride_multi_temperature_svr.joblib",
-        ),
-    ]
-
-    for label, filename in model_files:
+        ("Silicon multi-temperature SVR", "trained_models/silicon_multi_temperature_svr.joblib"),
+        ("SiC multi-temperature SVR", "trained_models/silicon_carbide_multi_temperature_svr.joblib"),
+        ("GaN multi-temperature SVR", "trained_models/gallium_nitride_multi_temperature_svr.joblib"),
+    ]:
         if os.path.exists(filename):
             try:
                 loaded[label] = joblib.load(filename)
             except Exception as exc:
-                errors.append(f"Could not load {filename}: {exc}")
+                errors.append(f"{filename}: {exc}")
         else:
             errors.append(f"Missing file: {filename}")
 
     return loaded, errors
+
+
 @st.cache_data
 def load_data():
     path = "diode_iv_data.csv"
@@ -398,382 +385,182 @@ elif st.session_state.page == "Predictor":
     )
     st.title("Diode current predictor")
     st.write(
-        "Select a device first, then choose a compatible trained model. "
-        "Enter a voltage to estimate the current and explore the I–V graph."
+        "Choose a trained model and enter a voltage. "
+        "Predictions outside the measured voltage range may be unreliable."
     )
 
-    # ---------------------------------------------------------
-    # 1. CHECK THAT THE REQUIRED DATA AND MODELS ARE AVAILABLE
-    # ---------------------------------------------------------
     if not models:
         st.error(
-            "No saved models could be loaded. Confirm that the model files "
-            "exist and are compatible with the deployed Python environment."
+            "No saved models loaded. Confirm the model .joblib files "
+            "are in the repository."
         )
-
-    elif training_data.empty:
-        st.error(
-            "The combined device dataset could not be loaded. "
-            "Check data/processed/classified_diode_measurements.csv."
-        )
-
     else:
-        # -----------------------------------------------------
-        # 2. SELECT DEVICE TYPE FIRST
-        # -----------------------------------------------------
-        device_type = st.selectbox(
-            "1. Choose device type",
-            [
-                "1N4004",
-                "Silicon",
-                "Silicon carbide (SiC)",
-                "Gallium nitride (GaN)",
-            ],
-            key="predict_device_type",
-        )
+        model_name = st.selectbox("Choose a model", list(models.keys()))
 
-        model_name = None
-        temperature = 293.0
-        device_rows = pd.DataFrame()
-        available_temperatures = []
-
-        # -----------------------------------------------------
-        # 3. SELECT THE DEVICE AND FIND COMPATIBLE MODELS
-        # -----------------------------------------------------
-        if device_type == "1N4004":
-            device = "1N4004"
-
-            available_models = [
-                name
-                for name in ["Random Forest", "Tuned SVR"]
-                if name in models
-            ]
-
-            if available_models:
-                model_name = st.selectbox(
-                    "2. Choose model",
-                    available_models,
-                    key="predict_model_1n4004",
-                )
-            else:
-                st.error(
-                    "Neither Random Forest nor Tuned SVR is available. "
-                    "Check the original model files."
-                )
-
-            st.info(
-                "These models use the original 1N4004 voltage–current data. "
-                "They are not intended as models for arbitrary silicon, "
-                "SiC, or GaN devices."
-            )
-
-        elif device_type == "Silicon":
-            device_options = sorted(
-                training_data.loc[
-                    training_data["material"]
-                    .astype(str)
-                    .str.strip()
-                    .str.lower()
-                    .eq("silicon"),
-                    "device",
-                ]
-                .dropna()
-                .astype(str)
-                .unique()
-            )
-
-            if device_options:
-                device = st.selectbox(
-                    "2. Choose device",
-                    device_options,
-                    key="predict_silicon_device",
-                )
-
-                available_models = (
-                    ["Silicon SVR"] if "Silicon SVR" in models else []
-                )
-
-                if available_models:
-                    model_name = st.selectbox(
-                        "3. Choose model",
-                        available_models,
-                        key="predict_model_silicon",
-                    )
-                else:
-                    st.error(
-                        "The Silicon SVR model is not available. "
-                        "Check its saved file and the scikit-learn version."
-                    )
-
-                device_rows = training_data[
-                    (training_data["device"].astype(str) == device)
-                    & (training_data["current_A"] > 0)
-                ]
-
-                available_temperatures = sorted(
-                    pd.to_numeric(
-                        device_rows["temperature_K"], errors="coerce"
-                    )
-                    .dropna()
-                    .unique()
-                    .astype(float)
-                    .tolist()
-                )
-
-            else:
-                device = None
-                st.warning("No silicon devices were found in the combined dataset.")
-
-        elif device_type == "Silicon carbide (SiC)":
-            device_options = sorted(
-                training_data.loc[
-                    training_data["material"]
-                    .astype(str)
-                    .str.strip()
-                    .str.lower()
-                    .eq("silicon carbide"),
-                    "device",
-                ]
-                .dropna()
-                .astype(str)
-                .unique()
-            )
-
-            if device_options:
-                device = st.selectbox(
-                    "2. Choose device",
-                    device_options,
-                    key="predict_sic_device",
-                )
-
-                available_models = (
-                    ["SiC SVR"] if "SiC SVR" in models else []
-                )
-
-                if available_models:
-                    model_name = st.selectbox(
-                        "3. Choose model",
-                        available_models,
-                        key="predict_model_sic",
-                    )
-                else:
-                    st.error(
-                        "The SiC SVR model is not available. "
-                        "Check its saved file and the scikit-learn version."
-                    )
-
-                device_rows = training_data[
-                    (training_data["device"].astype(str) == device)
-                    & (training_data["current_A"] > 0)
-                ]
-
-                available_temperatures = sorted(
-                    pd.to_numeric(
-                        device_rows["temperature_K"], errors="coerce"
-                    )
-                    .dropna()
-                    .unique()
-                    .astype(float)
-                    .tolist()
-                )
-
-            else:
-                device = None
-                st.warning(
-                    "No silicon carbide devices were found in the combined dataset."
-                )
-
-        else:
-            # GaN measurements are present in the dataset, but this app
-            # does not currently connect a verified GaN prediction pipeline.
-            device = "GaN Schottky"
-            st.warning(
-                "GaN measurements are available in Dataset Explorer, but "
-                "a compatible GaN model has not been connected and verified "
-                "in this Predictor. GaN predictions are therefore disabled."
-            )
-
-        # -----------------------------------------------------
-        # 4. SELECT A MEASURED TEMPERATURE FOR SILICON OR SIC
-        # -----------------------------------------------------
-        if device_type in ["Silicon", "Silicon carbide (SiC)"]:
-            if available_temperatures:
-                temperature = st.selectbox(
-                    "4. Choose measured temperature (K)",
-                    available_temperatures,
-                    key=f"predict_temperature_{device_type}",
-                )
-
-                st.caption(
-                    "Choose from the temperatures recorded for this device. "
-                    "This does not mean the model has been independently "
-                    "validated at every device–temperature combination."
-                )
-            else:
-                temperature = None
-                st.warning(
-                    "No valid measured temperatures were found for this device."
-                )
-
-        # -----------------------------------------------------
-        # 5. ENTER VOLTAGE
-        # -----------------------------------------------------
+        # No min_value/max_value: the user can enter any voltage.
+        # Predictions outside the training range are extrapolations and may be unreliable.
         voltage = st.number_input(
-            "5. Enter voltage (V)",
+            "Measured voltage (V)",
             value=0.70,
             step=0.005,
             format="%.5f",
-            key="predict_voltage",
         )
 
-        # Warn if the voltage is outside this device's measured range.
-        if (
-            device_type in ["Silicon", "Silicon carbide (SiC)"]
-            and temperature is not None
-            and not device_rows.empty
-        ):
-            measured_rows = device_rows[
-                pd.to_numeric(
-                    device_rows["temperature_K"], errors="coerce"
-                )
-                == float(temperature)
+       
+        
+        if model_name in ["Silicon SVR", "Silicon multi-temperature SVR"]:
+            device_options = [
+                "1N11877R",
+                "1N1190",
+                "1N3913",
+                "45L120",
+                "BYX661000",
+                "BZW12360",
+                "BZW1336",
+                "BZW1347",
+                "MBR4035",
+            ]
+        elif model_name in ["SiC SVR", "SiC multi-temperature SVR"]:
+            device_options = [
+                "C6D20065A",
+                "FFSH3065B",
+                "FFSH3065B-F085",
+                "STPSC12065DY",
+            ]
+        elif model_name == "GaN multi-temperature SVR":
+            device_options = ["Au/Ni/n-GaN Schottky diode"]
+        else:
+            device_options = [
+                "1N4004",
+                "Generic silicon",
+                "Silicon carbide",
+                "GaN Schottky",
             ]
 
-            if not measured_rows.empty:
-                measured_min = float(measured_rows["voltage_V"].min())
-                measured_max = float(measured_rows["voltage_V"].max())
+        device = st.selectbox("Device", device_options)
 
-                st.caption(
-                    f"Recorded voltage range for {device} at "
-                    f"{temperature:g} K: {measured_min:.5g} to "
-                    f"{measured_max:.5g} V."
-                )
 
-                if voltage < measured_min or voltage > measured_max:
-                    st.warning(
-                        "The selected voltage is outside the recorded range "
-                        "for this device and temperature. The app allows the "
-                        "prediction, but it may be unreliable."
-                    )
-
-        elif device_type == "1N4004" and valid_data:
-            if voltage < vmin or voltage > vmax:
+        temperature = st.number_input(
+            "Temperature (K)",
+            min_value=1.0,
+            max_value=500.0,
+            value=293.0,
+            step=1.0,
+        )
+        
+        if model_name in ["Silicon SVR", "SiC SVR"]:
+            if not 77.0 <= temperature <= 293.0:
                 st.warning(
-                    f"The voltage is outside the original 1N4004 measured "
-                    f"range ({vmin:.5g} to {vmax:.5g} V). "
-                    "The prediction is an extrapolation and may be unreliable."
+                    "The legacy SVR models were trained on data from "
+                    "77 K to 293 K. Predictions outside this "
+                    "temperature range may be unreliable."
                 )
+        elif model_name in ["Silicon multi-temperature SVR", "SiC multi-temperature SVR", "GaN multi-temperature SVR"] and not training_data.empty:
+            material_name = "silicon" if model_name.startswith("Silicon") else ("silicon carbide" if model_name.startswith("SiC") else "gallium nitride")
+            material_rows = training_data[training_data["material"].astype(str).str.strip().str.lower().eq(material_name)]
+            if not material_rows.empty:
+                tmin = float(pd.to_numeric(material_rows["temperature_K"], errors="coerce").min())
+                tmax = float(pd.to_numeric(material_rows["temperature_K"], errors="coerce").max())
+                if temperature < tmin or temperature > tmax:
+                    st.warning(f"The selected temperature is outside this material's recorded range ({tmin:g}–{tmax:g} K); predictions may be unreliable.")
 
-        # -----------------------------------------------------
-        # 6. PREDICT CURRENT
-        # -----------------------------------------------------
-        if st.button("6. Predict current", key="predict_button"):
+
+        
+        
+        
+        
+        if st.button("Predict current", key="predict_button"):
+            # Clear the previous result before attempting a new prediction.
             st.session_state.pop("last_prediction", None)
 
-            if model_name is None:
-                st.error("No compatible prediction model is available.")
-
-            elif device_type in [
-                "Silicon",
-                "Silicon carbide (SiC)",
-            ] and temperature is None:
-                st.error(
-                    "A measured temperature is unavailable for this device."
-                )
-
-            else:
-                try:
-                    if model_name in ["Silicon SVR", "SiC SVR"]:
-                        measured_rows = training_data[
-                            (training_data["device"].astype(str) == device)
-                            & (
-                                pd.to_numeric(
-                                    training_data["temperature_K"],
-                                    errors="coerce",
-                                )
-                                == float(temperature)
-                            )
+            try:
+                if model_name in ["Silicon SVR", "SiC SVR", "Silicon multi-temperature SVR", "SiC multi-temperature SVR", "GaN multi-temperature SVR"]:
+                    if training_data.empty:
+                        st.error("The training dataset could not be loaded.")
+                    else:
+                        device_data = training_data[
+                            (training_data["device"] == device)
+                            & (training_data["temperature_K"] == temperature)
                             & (training_data["current_A"] > 0)
                         ]
 
-                        if measured_rows.empty:
+                        if device_data.empty:
                             st.error(
-                                f"No positive-current measurements were found "
-                                f"for {device} at {temperature:g} K."
+                                f"No measured data is available for {device} "
+                                f"at exactly {temperature:g} K. "
+                                "Choose a temperature with measured data."
                             )
-
                         else:
-                            model_input = pd.DataFrame(
-                                [
-                                    {
-                                        "device": device,
-                                        "voltage_V": float(voltage),
-                                        "temperature_K": float(temperature),
-                                    }
-                                ]
+                            min_voltage = float(
+                                device_data["voltage_V"].min()
+                            )
+                            max_voltage = float(
+                                device_data["voltage_V"].max()
                             )
 
-                            # These saved material-specific SVR models predict
-                            # log10(current), so convert back to amperes.
-                            log_current = float(
+                            if model_name == "GaN multi-temperature SVR":
+                                model_input = pd.DataFrame([{
+                                    "voltage_V": voltage,
+                                    "temperature_K": temperature,
+                                }])
+                            else:
+                                model_input = pd.DataFrame([{
+                                    "device": device,
+                                    "voltage_V": voltage,
+                                    "temperature_K": temperature,
+                                }])
+
+                            model_output = float(
                                 models[model_name].predict(model_input)[0]
                             )
-                            current = 10.0 ** log_current
-
-                            if not np.isfinite(current):
-                                st.error(
-                                    "The model returned a non-finite current."
-                                )
-
+                            if model_name in ["Silicon multi-temperature SVR", "SiC multi-temperature SVR", "GaN multi-temperature SVR"]:
+                                # New multi-temperature wrappers return current in amperes directly.
+                                current = model_output
                             else:
-                                st.session_state.last_prediction = {
-                                    "model": model_name,
-                                    "device": device,
-                                    "voltage": float(voltage),
-                                    "temperature": float(temperature),
-                                    "current": float(current),
-                                }
+                                # Legacy material-specific models return log10(current).
+                                current = 10 ** model_output
 
-                    else:
-                        # Random Forest and Tuned SVR were trained on the
-                        # original 1N4004 data and take voltage as input.
-                        prediction = models[model_name].predict(
-                            np.array([[float(voltage)]])
-                        )
-                        current = float(np.asarray(prediction).reshape(-1)[0])
-
-                        if not np.isfinite(current):
-                            st.error(
-                                "The model returned a non-finite prediction."
-                            )
-
-                        else:
                             st.session_state.last_prediction = {
                                 "model": model_name,
-                                "device": "1N4004",
-                                "voltage": float(voltage),
-                                "temperature": 293.0,
+                                "device": device,
+                                "voltage": voltage,
+                                "temperature": temperature,
                                 "current": current,
                             }
 
-                except Exception as exc:
-                    st.session_state.pop("last_prediction", None)
-                    st.error(f"Prediction failed: {exc}")
+                else:
+                    # Original models use voltage as their only input.
+                    current = float(
+                        np.asarray(
+                            models[model_name].predict(
+                                np.array([[voltage]])
+                            )
+                        ).reshape(-1)[0]
+                    )
 
-        # -----------------------------------------------------
-        # 7. SHOW THE LATEST RESULT ONLY IF INPUTS STILL MATCH
-        # -----------------------------------------------------
+                    if not np.isfinite(current):
+                        st.error("The model returned a non-finite prediction.")
+                    else:
+                        st.session_state.last_prediction = {
+                            "model": model_name,
+                            "device": device,
+                            "voltage": voltage,
+                            "temperature": temperature,
+                            "current": current,
+                        }
+
+            except Exception as exc:
+                st.session_state.pop("last_prediction", None)
+                st.error(f"Prediction failed: {exc}")
+
+        # Show a result only when it matches the current inputs.
         result = st.session_state.get("last_prediction")
 
         if result and (
             result["model"] != model_name
-            or result["device"] != (
-                "1N4004" if device_type == "1N4004" else device
-            )
-            or result["voltage"] != float(voltage)
-            or result["temperature"] != float(
-                temperature if temperature is not None else 293.0
-            )
+            or result["device"] != device
+            or result["voltage"] != voltage
+            or result["temperature"] != temperature
         ):
             result = None
 
@@ -781,52 +568,66 @@ elif st.session_state.page == "Predictor":
             st.markdown("### Prediction result")
 
             m1, m2, m3 = st.columns(3)
-
             m1.metric(
                 "Predicted current",
                 f'{result["current"]:.6g} A',
             )
-
             m2.metric(
                 "Equivalent current",
                 f'{result["current"] * 1000:.6g} mA',
             )
-
             m3.metric("Model", result["model"])
 
-            st.info(
-                "This is a model estimate, not a physical measurement. "
-                "Even predictions inside the measured voltage range can be "
-                "inaccurate."
-            )
+            if result["model"] in ["Silicon SVR", "SiC SVR", "Silicon multi-temperature SVR", "SiC multi-temperature SVR", "GaN multi-temperature SVR"]:
+                st.info(
+                    f"Estimate for {result['device']} at "
+                    f"{result['temperature']:g} K. "
+                    "The voltage is within the measured range for this "
+                    "device and temperature, but the estimate is not "
+                    "a guaranteed physical measurement."
+                )
+            elif valid_data and not (
+                vmin <= result["voltage"] <= vmax
+            ):
+                st.warning(
+                    f'{result["voltage"]:.5f} V is outside the original '
+                    f"1N4004 measured range ({vmin:.5f}–{vmax:.5f} V). "
+                    "Treat this prediction as an extrapolation."
+                )
+            else:
+                st.info(
+                    "This is a model estimate, not a guaranteed "
+                    "physical measurement."
+                )
 
             with st.expander("How should I interpret this prediction?"):
-                st.write(f'Model: {result["model"]}')
-                st.write(f'Device: {result["device"]}')
-                st.write(f'Voltage: {result["voltage"]:.5f} V')
-                st.write(f'Temperature: {result["temperature"]:g} K')
+                st.write(f"Model: {result['model']}")
+                st.write(f"Device: {result['device']}")
+                st.write(f"Voltage: {result['voltage']:.5f} V")
+                st.write(f"Temperature: {result['temperature']:g} K")
                 st.write(
-                    f'Estimated current: {result["current"]:.6g} A '
-                    f'({result["current"] * 1000:.6g} mA)'
+                    f"Estimated current: {result['current']:.6g} A "
+                    f"({result['current'] * 1000:.6g} mA)"
                 )
                 st.write(
-                    "The prediction depends on the data and features used "
-                    "to train the selected model. It should not be treated "
-                    "as a guaranteed physical measurement."
+                    "A prediction inside the measured voltage range can "
+                    "still be inaccurate. These models are estimates, "
+                    "not substitutes for physical measurements."
                 )
 
-        # -----------------------------------------------------
-        # 8. INTERACTIVE I–V GRAPH
-        # -----------------------------------------------------
+
+
+
+
         st.markdown("### Interactive I–V graph")
-
         st.caption(
-            "Use the graph toolbar to zoom, pan, or reset. Hover over a curve "
-            "to see voltage and current. The gold star marks a successful "
-            "prediction for the current inputs. Choose a voltage view to "
-            "inspect forward or reverse bias separately."
+            "Use the graph toolbar to zoom, pan, or reset. Hover over a curve to see "
+            "the exact voltage and current. The gold star marks the latest successful "
+            "prediction for the current inputs. Choose Forward or Reverse view to avoid "
+            "the negative-voltage range compressing the positive-voltage region."
         )
 
+        # Keep the existing dataset choices; this update does not add or retrain datasets.
         compare_candidates = [
             "1N4004 forward bias",
             "1N4004 reverse bias",
@@ -837,18 +638,13 @@ elif st.session_state.page == "Predictor":
             "Cryogenic diode measurements",
             "GaN Schottky measurements",
         ]
-
         check_cols = st.columns(4)
         selected_curves = []
-
         for idx, dataset_name in enumerate(compare_candidates):
             with check_cols[idx % 4]:
                 default_checked = dataset_name == (
-                    "1N4004 forward bias"
-                    if voltage >= 0
-                    else "1N4004 reverse bias"
+                    "1N4004 forward bias" if voltage >= 0 else "1N4004 reverse bias"
                 )
-
                 if st.checkbox(
                     dataset_name,
                     value=default_checked,
@@ -856,124 +652,66 @@ elif st.session_state.page == "Predictor":
                 ):
                     selected_curves.append(dataset_name)
 
+        # Load and plot only datasets selected above; the underlying CSV files are unchanged.
         curve_data = []
-
         for dataset_name in selected_curves:
             frame = read_dataset_csv(DATASET_FILES[dataset_name])
             v_col, i_col = voltage_current_columns(frame)
-
-            if v_col is None or i_col is None:
-                st.warning(
-                    f"Could not identify voltage and current columns for "
-                    f"{dataset_name}."
-                )
+            if v_col is None:
                 continue
 
             curve_label = dataset_name
-
             temperature_col = next(
-                (
-                    col
-                    for col in ("temperature_K", "T_K")
-                    if col in frame.columns
-                ),
-                None,
+                (col for col in ("temperature_K", "T_K") if col in frame.columns), None
             )
-
             if temperature_col is not None and dataset_name in (
-                "Cryogenic diode measurements",
-                "GaN Schottky measurements",
+                "Cryogenic diode measurements", "GaN Schottky measurements"
             ):
                 frame = frame.copy()
-
-                frame[temperature_col] = pd.to_numeric(
-                    frame[temperature_col],
-                    errors="coerce",
-                )
-
-                available_temps = (
-                    frame[temperature_col].dropna().unique()
-                )
-
+                frame[temperature_col] = pd.to_numeric(frame[temperature_col], errors="coerce")
+                available_temps = frame[temperature_col].dropna().unique()
                 if len(available_temps):
-                    graph_temperature = (
-                        float(temperature)
-                        if temperature is not None
-                        else 293.0
-                    )
-
                     nearest_temp = min(
                         available_temps,
-                        key=lambda t: abs(
-                            float(t) - graph_temperature
-                        ),
+                        key=lambda t: abs(float(t) - float(temperature)),
                     )
-
-                    frame = frame[
-                        frame[temperature_col] == nearest_temp
-                    ].copy()
-
-                    curve_label = (
-                        f"{dataset_name} ({nearest_temp:g} K)"
-                    )
+                    frame = frame[frame[temperature_col] == nearest_temp].copy()
+                    curve_label = f"{dataset_name} ({nearest_temp:g} K)"
 
             curve = frame[[v_col, i_col]].copy()
             curve.columns = ["voltage", "current"]
-
-            curve["voltage"] = pd.to_numeric(
-                curve["voltage"], errors="coerce"
-            )
-            curve["current"] = pd.to_numeric(
-                curve["current"], errors="coerce"
-            )
-
+            curve["voltage"] = pd.to_numeric(curve["voltage"], errors="coerce")
+            curve["current"] = pd.to_numeric(curve["current"], errors="coerce")
             curve = (
                 curve.replace([np.inf, -np.inf], np.nan)
                 .dropna()
                 .sort_values("voltage")
             )
-
             if not curve.empty:
                 curve_data.append((curve_label, curve))
 
         result_for_graph = st.session_state.get("last_prediction")
-
         result_matches_inputs = bool(
             result_for_graph
             and result_for_graph.get("model") == model_name
-            and result_for_graph.get("device") == (
-                "1N4004" if device_type == "1N4004" else device
-            )
-            and result_for_graph.get("voltage") == float(voltage)
-            and result_for_graph.get("temperature") == float(
-                temperature if temperature is not None else 293.0
-            )
+            and result_for_graph.get("device") == device
+            and result_for_graph.get("voltage") == voltage
+            and result_for_graph.get("temperature") == temperature
         )
-
         if result_matches_inputs:
             try:
-                result_matches_inputs = np.isfinite(
-                    float(result_for_graph["current"])
-                )
+                result_matches_inputs = np.isfinite(float(result_for_graph["current"]))
             except (TypeError, ValueError, KeyError):
                 result_matches_inputs = False
 
         all_voltages = []
-
         for _, curve in curve_data:
-            all_voltages.extend(
-                curve["voltage"].astype(float).tolist()
-            )
-
+            all_voltages.extend(curve["voltage"].astype(float).tolist())
         if result_matches_inputs:
-            all_voltages.append(
-                float(result_for_graph["voltage"])
-            )
+            all_voltages.append(float(result_for_graph["voltage"]))
 
         if all_voltages:
-            data_vmin = float(min(all_voltages))
-            data_vmax = float(max(all_voltages))
-
+            data_vmin, data_vmax = float(min(all_voltages)), float(max(all_voltages))
             if data_vmin == data_vmax:
                 data_vmin -= 0.1
                 data_vmax += 0.1
@@ -994,26 +732,14 @@ elif st.session_state.page == "Predictor":
 
         if view_mode == "Full voltage range":
             x_range = [data_vmin, data_vmax]
-
         elif view_mode == "Forward bias (0 V and above)":
             positive = [v for v in all_voltages if v >= 0]
-            x_range = (
-                [0.0, max(positive)]
-                if positive
-                else [0.0, 1.0]
-            )
-
+            x_range = [0.0, max(positive)] if positive else [0.0, 1.0]
             if x_range[0] == x_range[1]:
                 x_range[1] = x_range[0] + 0.1
-
         elif view_mode == "Reverse bias (below 0 V)":
             negative = [v for v in all_voltages if v < 0]
-            x_range = (
-                [min(negative), 0.0]
-                if negative
-                else [-1.0, 0.0]
-            )
-
+            x_range = [min(negative), 0.0] if negative else [-1.0, 0.0]
         elif view_mode == "Zoom around selected voltage":
             width = st.slider(
                 "Voltage window width (V)",
@@ -1023,53 +749,39 @@ elif st.session_state.page == "Predictor":
                 step=0.01,
                 key="iv_zoom_width",
             )
-
-            x_range = [
-                float(voltage) - width / 2,
-                float(voltage) + width / 2,
-            ]
-
+            x_range = [float(voltage) - width / 2, float(voltage) + width / 2]
         else:
+            # Number inputs allow a custom range even when data spans a wide voltage interval.
             left_col, right_col = st.columns(2)
-
             with left_col:
                 x_min = st.number_input(
                     "Minimum visible voltage (V)",
                     value=float(data_vmin),
                     key="iv_custom_x_min",
                 )
-
             with right_col:
                 x_max = st.number_input(
                     "Maximum visible voltage (V)",
                     value=float(data_vmax),
                     key="iv_custom_x_max",
                 )
-
             if x_min >= x_max:
-                st.warning(
-                    "The maximum voltage must be greater than "
-                    "the minimum voltage."
-                )
+                st.warning("The maximum voltage must be greater than the minimum voltage.")
                 x_range = [data_vmin, data_vmax]
             else:
                 x_range = [float(x_min), float(x_max)]
 
-        # Symmetric-log transformation makes positive and negative currents
-        # visible on the same graph, including very small current values.
+        # Plotly does not offer a native symmetric-log axis. Transform y positions for
+        # display, while hover tooltips continue to show the original current in amperes.
         linthresh = 1e-9
 
         def symlog_transform(values):
             values = np.asarray(values, dtype=float)
-            return np.sign(values) * np.log10(
-                1.0 + np.abs(values) / linthresh
-            )
+            return np.sign(values) * np.log10(1.0 + np.abs(values) / linthresh)
 
         fig = go.Figure()
-
         for curve_label, curve in curve_data:
             currents = curve["current"].to_numpy(dtype=float)
-
             fig.add_trace(
                 go.Scatter(
                     x=curve["voltage"],
@@ -1080,8 +792,7 @@ elif st.session_state.page == "Predictor":
                     line={"width": 2},
                     marker={"size": 4},
                     hovertemplate=(
-                        "Voltage: %{x:.6g} V<br>"
-                        "Current: %{customdata:.6g} A"
+                        "Voltage: %{x:.6g} V<br>Current: %{customdata:.6g} A"
                         "<extra>%{fullData.name}</extra>"
                     ),
                 )
@@ -1090,7 +801,6 @@ elif st.session_state.page == "Predictor":
         if result_matches_inputs:
             pred_v = float(result_for_graph["voltage"])
             pred_i = float(result_for_graph["current"])
-
             fig.add_trace(
                 go.Scatter(
                     x=[pred_v],
@@ -1105,10 +815,8 @@ elif st.session_state.page == "Predictor":
                         "line": {"color": "white", "width": 1.5},
                     },
                     hovertemplate=(
-                        "<b>MODEL PREDICTION</b><br>"
-                        "Voltage: %{x:.6g} V<br>"
-                        "Predicted current: %{customdata:.6g} A"
-                        "<extra></extra>"
+                        "<b>MODEL PREDICTION</b><br>Voltage: %{x:.6g} V<br>"
+                        "Predicted current: %{customdata:.6g} A<extra></extra>"
                     ),
                 )
             )
@@ -1127,7 +835,6 @@ elif st.session_state.page == "Predictor":
             -1e-7, -1e-8, -1e-9, 0.0, 1e-9, 1e-8, 1e-7,
             1e-6, 1e-5, 1e-4, 0.001, 0.01, 0.1, 1.0,
         ])
-
         fig.update_layout(
             title="Diode I–V characteristics",
             template="plotly_dark",
@@ -1143,10 +850,7 @@ elif st.session_state.page == "Predictor":
                 "borderwidth": 1,
             },
             xaxis={
-                "title": (
-                    "Voltage (V) — negative: reverse bias; "
-                    "positive: forward bias"
-                ),
+                "title": "Voltage (V) — negative: reverse bias; positive: forward bias",
                 "range": x_range,
                 "showgrid": True,
                 "gridcolor": "rgba(82,112,142,0.3)",
@@ -1158,10 +862,7 @@ elif st.session_state.page == "Predictor":
                 "title": "Current (A, symmetric-log scale)",
                 "tickmode": "array",
                 "tickvals": symlog_transform(tick_currents),
-                "ticktext": [
-                    f"{value:.0e}" if value else "0"
-                    for value in tick_currents
-                ],
+                "ticktext": [f"{value:.0e}" if value else "0" for value in tick_currents],
                 "showgrid": True,
                 "gridcolor": "rgba(82,112,142,0.3)",
                 "zeroline": True,
@@ -1179,11 +880,7 @@ elif st.session_state.page == "Predictor":
         st.plotly_chart(
             fig,
             use_container_width=True,
-            config={
-                "scrollZoom": True,
-                "displaylogo": False,
-                "responsive": True,
-            },
+            config={"scrollZoom": True, "displaylogo": False, "responsive": True},
             key="interactive_iv_plot",
         )
 
@@ -1268,6 +965,7 @@ elif st.session_state.page == "Dataset Explorer":
 
 st.markdown("---")
 st.markdown('<p class="small-muted">DiodeLab AI · Educational ML demonstration · Predictions are estimates based on one measured 1N4004 voltage sweep.</p>', unsafe_allow_html=True)
+
 
 
 
