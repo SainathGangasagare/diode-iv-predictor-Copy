@@ -6,6 +6,7 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 
+
 st.set_page_config(
     page_title="DiodeLab AI | I–V Predictor",
     page_icon="⚡",
