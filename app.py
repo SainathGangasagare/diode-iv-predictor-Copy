@@ -185,26 +185,36 @@ PAGES = ["Home", "Predictor", "Model Comparison", "Dataset Explorer"]
 
 if "page" not in st.session_state:
     st.session_state.page = "Home"
-if "navigation_radio" not in st.session_state:
-    st.session_state.navigation_radio = st.session_state.page
 
 def go_to(page):
-    # Streamlit runs this callback before redrawing the page.
     st.session_state.page = page
-    st.session_state.navigation_radio = page
 
-def sync_page_from_radio():
-    st.session_state.page = st.session_state.navigation_radio
+nav_cols = st.columns([1.45, 1, 1.25, 1.25, 1.15], gap="small")
 
-# Compact top navigation replaces the crowded sidebar.
-nav_cols = st.columns([1.45, 1, 1.25, 1.25, 1.15])
 with nav_cols[0]:
-    st.markdown("<div style='padding:.55rem 0;color:#eaf4ff;font-weight:800;font-size:1.05rem'>⚡ DiodeLab <span style='color:#54d5ff'>AI</span></div>", unsafe_allow_html=True)
-for col, target, label in zip(nav_cols[1:], PAGES, ["⌂  Home", "⚡  Predictor", "◫  Model comparison", "⌁  Dataset"]):
+    st.markdown(
+        "<div style='padding:.55rem 0;color:#eaf4ff;"
+        "font-weight:800;font-size:1.05rem'>"
+        "⚡ DiodeLab <span style='color:#54d5ff'>AI</span></div>",
+        unsafe_allow_html=True,
+    )
+
+for col, target, label in zip(
+    nav_cols[1:],
+    PAGES,
+    ["⌂ Home", "⚡ Predictor", "◫ Model comparison", "⌁ Dataset"],
+):
     with col:
-        st.button(label, key=f"topnav_{target}", use_container_width=True, on_click=go_to, args=(target,))
+        st.button(
+            label,
+            key=f"topnav_{target}",
+            use_container_width=True,
+            on_click=go_to,
+            args=(target,),
+        )
 
 page = st.session_state.page
+
 
 if model_errors:
     with st.expander("Asset loading notes", expanded=False):
