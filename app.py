@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
 st.set_page_config(
     page_title="DiodeLab AI | I–V Predictor",
@@ -120,7 +121,6 @@ DATASET_FILES = {
     "1N5229B Zener reverse bias": "data/external/1n5229b_reverse.csv",
     "SB560 forward bias": "data/external/sb560_forward.csv",
     "SB560 reverse bias": "data/external/sb560_reverse.csv",
-    "Cryogenic diode measurements": "data/external/cryogenic_diode_measurements.csv",
     "GaN Schottky measurements": "data/external/gan_schottky_measurements.csv",
     "Classified combined measurements": "data/processed/classified_diode_measurements.csv",
     "External measurements review": "data/processed/external_iv_measurements_review.csv",
@@ -497,15 +497,13 @@ elif st.session_state.page == "Predictor":
 
         st.markdown("### Interactive I–V graph")
         st.caption(
-            "Select datasets using the checkboxes. The graph shows negative and positive "
-            "voltages on the same axis. The current axis uses a symmetric-log scale so "
-            "small reverse leakage currents and large forward currents can both be seen. "
-            "Changing voltage moves the marker; it does not change measured data. "
-            "Reverse-bias measurements are not proof that a prediction model was trained "
-            "for reverse bias."
+            "Zoom by dragging across the graph; pan using the toolbar; double-click to reset. "
+            "Hover over a curve for its voltage and current. The gold star marks a successful prediction. "
+            "The current axis is symmetric-log: it can show negative, zero, and positive currents."
         )
 
-        # Checkboxes are placed above the graph as requested.
+        # These are the existing project datasets, except the cryogenic dataset
+        # which is intentionally not included in this graph.
         compare_candidates = [
             "1N4004 forward bias",
             "1N4004 reverse bias",
@@ -513,62 +511,52 @@ elif st.session_state.page == "Predictor":
             "1N5229B Zener reverse bias",
             "SB560 forward bias",
             "SB560 reverse bias",
-            "Cryogenic diode measurements",
             "GaN Schottky measurements",
         ]
+
         check_cols = st.columns(4)
         selected_curves = []
         for idx, dataset_name in enumerate(compare_candidates):
             with check_cols[idx % 4]:
-                default_checked = dataset_name in (
-                    ["1N4004 forward bias"] if voltage >= 0 else ["1N4004 reverse bias"]
+                default_checked = dataset_name == (
+                    "1N4004 forward bias" if voltage >= 0 else "1N4004 reverse bias"
                 )
-                if st.checkbox(dataset_name, value=default_checked, key=f"curve_check_{dataset_name}"):
+                if st.checkbox(
+                    dataset_name,
+                    value=default_checked,
+                    key=f"curve_check_{dataset_name}",
+                ):
                     selected_curves.append(dataset_name)
 
-        fig, ax = plt.subplots(figsize=(10, 5.2))
-        fig.patch.set_facecolor("#081326")
-        ax.set_facecolor("#081326")
-        plotted_any = False
-
+        # Read selected CSVs and keep the existing measured values unchanged.
+        curve_data = []
         for dataset_name in selected_curves:
             frame = read_dataset_csv(DATASET_FILES[dataset_name])
             v_col, i_col = voltage_current_columns(frame)
             if v_col is None:
                 continue
+
+            curve_label = dataset_name
+            if dataset_name == "GaN Schottky measurements" and "temperature_K" in frame.columns:
+                frame = frame.copy()
+                frame["temperature_K"] = pd.to_numeric(frame["temperature_K"], errors="coerce")
+                available_temps = frame["temperature_K"].dropna().unique()
+                if len(available_temps):
+                    nearest_temp = min(available_temps, key=lambda t: abs(float(t) - temperature))
+                    frame = frame[frame["temperature_K"] == nearest_temp].copy()
+                    curve_label = f"{dataset_name} ({nearest_temp:g} K)"
+
             curve = frame[[v_col, i_col]].copy()
-            curve[v_col] = pd.to_numeric(curve[v_col], errors="coerce")
-            curve[i_col] = pd.to_numeric(curve[i_col], errors="coerce")
-            curve = curve.dropna().sort_values(v_col)
-            if dataset_name == "Cryogenic diode measurements" and "temperature_K" in frame.columns:
-                # Show the nearest temperature represented in this dataset.
-                temp_vals = pd.to_numeric(frame["temperature_K"], errors="coerce").dropna().unique()
-                if len(temp_vals):
-                    nearest_temp = min(temp_vals, key=lambda t: abs(float(t) - temperature))
-                    temp_mask = pd.to_numeric(frame["temperature_K"], errors="coerce") == nearest_temp
-                    sub = frame.loc[temp_mask, [v_col, i_col]].copy()
-                    sub[v_col] = pd.to_numeric(sub[v_col], errors="coerce")
-                    sub[i_col] = pd.to_numeric(sub[i_col], errors="coerce")
-                    curve = sub.dropna().sort_values(v_col)
-                    ax.plot(curve[v_col], curve[i_col], linewidth=1.8,
-                            label=f"{dataset_name} ({nearest_temp:g} K)")
-                else:
-                    ax.plot(curve[v_col], curve[i_col], linewidth=1.8, label=dataset_name)
-            elif dataset_name == "GaN Schottky measurements" and "temperature_K" in frame.columns:
-                temp_vals = pd.to_numeric(frame["temperature_K"], errors="coerce").dropna().unique()
-                if len(temp_vals):
-                    nearest_temp = min(temp_vals, key=lambda t: abs(float(t) - temperature))
-                    sub = frame.loc[pd.to_numeric(frame["temperature_K"], errors="coerce") == nearest_temp, [v_col, i_col]].copy()
-                    sub[v_col] = pd.to_numeric(sub[v_col], errors="coerce")
-                    sub[i_col] = pd.to_numeric(sub[i_col], errors="coerce")
-                    curve = sub.dropna().sort_values(v_col)
-                    ax.plot(curve[v_col], curve[i_col], linewidth=1.8,
-                            label=f"{dataset_name} ({nearest_temp:g} K)")
-                else:
-                    ax.plot(curve[v_col], curve[i_col], linewidth=1.8, label=dataset_name)
-            else:
-                ax.plot(curve[v_col], curve[i_col], linewidth=1.8, label=dataset_name)
-            plotted_any = plotted_any or not curve.empty
+            curve.columns = ["voltage", "current"]
+            curve["voltage"] = pd.to_numeric(curve["voltage"], errors="coerce")
+            curve["current"] = pd.to_numeric(curve["current"], errors="coerce")
+            curve = (
+                curve.replace([np.inf, -np.inf], np.nan)
+                .dropna()
+                .sort_values("voltage")
+            )
+            if not curve.empty:
+                curve_data.append((curve_label, curve))
 
         result_for_graph = st.session_state.get("last_prediction")
         result_matches_inputs = bool(
@@ -578,35 +566,185 @@ elif st.session_state.page == "Predictor":
             and result_for_graph.get("voltage") == voltage
             and result_for_graph.get("temperature") == temperature
         )
-        if result_matches_inputs and np.isfinite(result_for_graph["current"]):
-            ax.scatter(
-                [voltage], [result_for_graph["current"]],
-                s=95, marker="*", zorder=8, color="#ffcc66",
-                edgecolors="#fff2c2", linewidths=0.8,
-                label=f"Predicted point ({voltage:.4g} V)",
-            )
-        ax.axvline(voltage, linestyle="--", linewidth=1.2, alpha=.7,
-                   color="#9dbcf4", label=f"Selected voltage: {voltage:.4g} V")
-        ax.set_title("Diode I–V characteristics: forward and reverse regions", color="#eaf4ff", pad=12)
-        ax.set_xlabel("Voltage (V)  |  negative = reverse bias, positive = forward bias", color="#a9c4df")
-        ax.set_ylabel("Current (A, symmetric-log scale)", color="#a9c4df")
-        # A symmetric log scale preserves the sign of current and makes tiny
-        # reverse leakage currents visible alongside larger forward currents.
-        ax.set_yscale("symlog", linthresh=1e-9)
-        ax.tick_params(colors="#a9c4df")
-        for spine in ax.spines.values():
-            spine.set_color("#294563")
-        ax.grid(True, alpha=.25, color="#52708e")
-        if plotted_any or result_matches_inputs:
-            ax.legend(facecolor="#10223b", edgecolor="#294563", labelcolor="#eaf4ff", fontsize=8)
+
+        # Choose a view based on the voltage values in the selected data.
+        all_voltages = []
+        for _, curve in curve_data:
+            all_voltages.extend(curve["voltage"].tolist())
+        if result_matches_inputs:
+            all_voltages.append(float(result_for_graph["voltage"]))
+
+        if all_voltages:
+            data_vmin, data_vmax = float(min(all_voltages)), float(max(all_voltages))
+            if data_vmin == data_vmax:
+                data_vmin -= 0.1
+                data_vmax += 0.1
         else:
-            ax.set_xlim(-1.0, 1.0)
-            ax.set_ylim(-1e-6, 1e-6)
-            ax.text(0.5, 0.5, "Select one or more datasets above to display curves",
-                    transform=ax.transAxes, ha="center", color="#b9cce3")
-        fig.tight_layout()
-        st.pyplot(fig, use_container_width=True)
-        plt.close(fig)
+            data_vmin, data_vmax = -1.0, 1.0
+
+        view_mode = st.selectbox(
+            "Graph view",
+            [
+                "Full voltage range",
+                "Forward bias (0 V and above)",
+                "Reverse bias (below 0 V)",
+                "Zoom around selected voltage",
+                "Custom voltage range",
+            ],
+            key="iv_graph_view",
+        )
+
+        if view_mode == "Full voltage range":
+            x_range = [data_vmin, data_vmax]
+        elif view_mode == "Forward bias (0 V and above)":
+            positive = [v for v in all_voltages if v >= 0]
+            x_range = [0.0, max(positive)] if positive else [0.0, 1.0]
+            if x_range[0] == x_range[1]:
+                x_range[1] = x_range[0] + 0.1
+        elif view_mode == "Reverse bias (below 0 V)":
+            negative = [v for v in all_voltages if v < 0]
+            x_range = [min(negative), 0.0] if negative else [-1.0, 0.0]
+        elif view_mode == "Zoom around selected voltage":
+            width = st.slider(
+                "Voltage window width (V)",
+                min_value=0.01,
+                max_value=10.0,
+                value=0.5,
+                step=0.01,
+                key="iv_zoom_width",
+            )
+            x_range = [voltage - width / 2, voltage + width / 2]
+        else:
+            if data_vmin >= data_vmax:
+                data_vmin, data_vmax = data_vmin - 0.1, data_vmax + 0.1
+            x_min, x_max = st.slider(
+                "Visible voltage range (V)",
+                min_value=float(data_vmin),
+                max_value=float(data_vmax),
+                value=(float(data_vmin), float(data_vmax)),
+                key="iv_custom_range",
+            )
+            x_range = [x_min, x_max]
+
+        # A symmetric-log transform allows positive, negative, and zero current
+        # while displaying small and large magnitudes together. Tooltip values
+        # remain the original currents in amperes.
+        linthresh = 1e-9
+
+        def symlog_transform(values):
+            values = np.asarray(values, dtype=float)
+            return np.sign(values) * np.log10(1.0 + np.abs(values) / linthresh)
+
+        fig = go.Figure()
+        for curve_label, curve in curve_data:
+            currents = curve["current"].to_numpy(dtype=float)
+            fig.add_trace(
+                go.Scatter(
+                    x=curve["voltage"],
+                    y=symlog_transform(currents),
+                    customdata=currents,
+                    mode="lines+markers",
+                    name=curve_label,
+                    line={"width": 2},
+                    marker={"size": 4},
+                    hovertemplate=(
+                        "Voltage: %{x:.6g} V<br>Current: %{customdata:.6g} A"
+                        "<extra>%{fullData.name}</extra>"
+                    ),
+                )
+            )
+
+        # Add the predicted current as a gold star only after a successful
+        # prediction for the currently selected inputs.
+        if result_matches_inputs:
+            pred_v = float(result_for_graph["voltage"])
+            pred_i = float(result_for_graph["current"])
+            fig.add_trace(
+                go.Scatter(
+                    x=[pred_v],
+                    y=symlog_transform([pred_i]),
+                    customdata=[pred_i],
+                    mode="markers",
+                    name="Predicted current",
+                    marker={
+                        "symbol": "star",
+                        "size": 17,
+                        "color": "#ffcc66",
+                        "line": {"color": "white", "width": 1.5},
+                    },
+                    hovertemplate=(
+                        "<b>MODEL PREDICTION</b><br>Voltage: %{x:.6g} V<br>"
+                        "Predicted current: %{customdata:.6g} A<extra></extra>"
+                    ),
+                )
+            )
+
+        fig.add_vline(
+            x=float(voltage),
+            line_dash="dash",
+            line_width=1.5,
+            line_color="#9dbcf4",
+            annotation_text=f"Selected: {voltage:.4g} V",
+            annotation_position="top",
+        )
+
+        tick_currents = np.array([
+            -1.0, -0.1, -0.01, -0.001, -1e-4, -1e-5, -1e-6,
+            -1e-7, -1e-8, -1e-9, 0.0, 1e-9, 1e-8, 1e-7,
+            1e-6, 1e-5, 1e-4, 0.001, 0.01, 0.1, 1.0,
+        ])
+        tick_positions = symlog_transform(tick_currents)
+        tick_labels = [f"{value:.0e}" if value else "0" for value in tick_currents]
+
+        fig.update_layout(
+            title="Diode I–V characteristics: forward and reverse regions",
+            template="plotly_dark",
+            height=650,
+            autosize=True,
+            margin={"l": 85, "r": 30, "t": 75, "b": 100},
+            paper_bgcolor="#081326",
+            plot_bgcolor="#081326",
+            hovermode="closest",
+            legend={
+                "bgcolor": "rgba(16,34,59,0.9)",
+                "bordercolor": "#294563",
+                "borderwidth": 1,
+            },
+            xaxis={
+                "title": "Voltage (V) — negative: reverse bias; positive: forward bias",
+                "range": x_range,
+                "showgrid": True,
+                "gridcolor": "rgba(82,112,142,0.3)",
+                "zeroline": True,
+                "zerolinecolor": "#7890ad",
+                "automargin": True,
+            },
+            yaxis={
+                "title": "Current (A, symmetric-log scale)",
+                "tickmode": "array",
+                "tickvals": tick_positions,
+                "ticktext": tick_labels,
+                "showgrid": True,
+                "gridcolor": "rgba(82,112,142,0.3)",
+                "zeroline": True,
+                "zerolinecolor": "#7890ad",
+                "automargin": True,
+            },
+        )
+
+        if not curve_data and not result_matches_inputs:
+            st.info("Select one or more datasets above to display curves. The prediction marker appears after a successful prediction.")
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+            config={
+                "scrollZoom": True,
+                "displaylogo": False,
+                "responsive": True,
+            },
+            key="interactive_iv_plot",
+        )
 
 
 # ---------- MODEL COMPARISON ----------
@@ -690,5 +828,6 @@ elif st.session_state.page == "Dataset Explorer":
 
 st.markdown("---")
 st.markdown('<p class="small-muted">DiodeLab AI · Educational ML demonstration · Predictions are estimates based on one measured 1N4004 voltage sweep.</p>', unsafe_allow_html=True)
+
 
 
