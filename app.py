@@ -121,6 +121,7 @@ DATASET_FILES = {
     "1N5229B Zener reverse bias": "data/external/1n5229b_reverse.csv",
     "SB560 forward bias": "data/external/sb560_forward.csv",
     "SB560 reverse bias": "data/external/sb560_reverse.csv",
+    "Cryogenic diode measurements": "data/external/cryogenic_diode_measurements.csv",
     "GaN Schottky measurements": "data/external/gan_schottky_measurements.csv",
     "Classified combined measurements": "data/processed/classified_diode_measurements.csv",
     "External measurements review": "data/processed/external_iv_measurements_review.csv",
@@ -497,13 +498,13 @@ elif st.session_state.page == "Predictor":
 
         st.markdown("### Interactive I–V graph")
         st.caption(
-            "Zoom by dragging across the graph; pan using the toolbar; double-click to reset. "
-            "Hover over a curve for its voltage and current. The gold star marks a successful prediction. "
-            "The current axis is symmetric-log: it can show negative, zero, and positive currents."
+            "Use the graph toolbar to zoom, pan, or reset. Hover over a curve to see "
+            "the exact voltage and current. The gold star marks the latest successful "
+            "prediction for the current inputs. Choose Forward or Reverse view to avoid "
+            "the negative-voltage range compressing the positive-voltage region."
         )
 
-        # These are the existing project datasets, except the cryogenic dataset
-        # which is intentionally not included in this graph.
+        # Keep the existing dataset choices; this update does not add or retrain datasets.
         compare_candidates = [
             "1N4004 forward bias",
             "1N4004 reverse bias",
@@ -511,9 +512,9 @@ elif st.session_state.page == "Predictor":
             "1N5229B Zener reverse bias",
             "SB560 forward bias",
             "SB560 reverse bias",
+            "Cryogenic diode measurements",
             "GaN Schottky measurements",
         ]
-
         check_cols = st.columns(4)
         selected_curves = []
         for idx, dataset_name in enumerate(compare_candidates):
@@ -528,7 +529,7 @@ elif st.session_state.page == "Predictor":
                 ):
                     selected_curves.append(dataset_name)
 
-        # Read selected CSVs and keep the existing measured values unchanged.
+        # Load and plot only datasets selected above; the underlying CSV files are unchanged.
         curve_data = []
         for dataset_name in selected_curves:
             frame = read_dataset_csv(DATASET_FILES[dataset_name])
@@ -537,13 +538,21 @@ elif st.session_state.page == "Predictor":
                 continue
 
             curve_label = dataset_name
-            if dataset_name == "GaN Schottky measurements" and "temperature_K" in frame.columns:
+            temperature_col = next(
+                (col for col in ("temperature_K", "T_K") if col in frame.columns), None
+            )
+            if temperature_col is not None and dataset_name in (
+                "Cryogenic diode measurements", "GaN Schottky measurements"
+            ):
                 frame = frame.copy()
-                frame["temperature_K"] = pd.to_numeric(frame["temperature_K"], errors="coerce")
-                available_temps = frame["temperature_K"].dropna().unique()
+                frame[temperature_col] = pd.to_numeric(frame[temperature_col], errors="coerce")
+                available_temps = frame[temperature_col].dropna().unique()
                 if len(available_temps):
-                    nearest_temp = min(available_temps, key=lambda t: abs(float(t) - temperature))
-                    frame = frame[frame["temperature_K"] == nearest_temp].copy()
+                    nearest_temp = min(
+                        available_temps,
+                        key=lambda t: abs(float(t) - float(temperature)),
+                    )
+                    frame = frame[frame[temperature_col] == nearest_temp].copy()
                     curve_label = f"{dataset_name} ({nearest_temp:g} K)"
 
             curve = frame[[v_col, i_col]].copy()
@@ -566,11 +575,15 @@ elif st.session_state.page == "Predictor":
             and result_for_graph.get("voltage") == voltage
             and result_for_graph.get("temperature") == temperature
         )
+        if result_matches_inputs:
+            try:
+                result_matches_inputs = np.isfinite(float(result_for_graph["current"]))
+            except (TypeError, ValueError, KeyError):
+                result_matches_inputs = False
 
-        # Choose a view based on the voltage values in the selected data.
         all_voltages = []
         for _, curve in curve_data:
-            all_voltages.extend(curve["voltage"].tolist())
+            all_voltages.extend(curve["voltage"].astype(float).tolist())
         if result_matches_inputs:
             all_voltages.append(float(result_for_graph["voltage"]))
 
@@ -583,7 +596,7 @@ elif st.session_state.page == "Predictor":
             data_vmin, data_vmax = -1.0, 1.0
 
         view_mode = st.selectbox(
-            "Graph view",
+            "Voltage view",
             [
                 "Full voltage range",
                 "Forward bias (0 V and above)",
@@ -613,22 +626,30 @@ elif st.session_state.page == "Predictor":
                 step=0.01,
                 key="iv_zoom_width",
             )
-            x_range = [voltage - width / 2, voltage + width / 2]
+            x_range = [float(voltage) - width / 2, float(voltage) + width / 2]
         else:
-            if data_vmin >= data_vmax:
-                data_vmin, data_vmax = data_vmin - 0.1, data_vmax + 0.1
-            x_min, x_max = st.slider(
-                "Visible voltage range (V)",
-                min_value=float(data_vmin),
-                max_value=float(data_vmax),
-                value=(float(data_vmin), float(data_vmax)),
-                key="iv_custom_range",
-            )
-            x_range = [x_min, x_max]
+            # Number inputs allow a custom range even when data spans a wide voltage interval.
+            left_col, right_col = st.columns(2)
+            with left_col:
+                x_min = st.number_input(
+                    "Minimum visible voltage (V)",
+                    value=float(data_vmin),
+                    key="iv_custom_x_min",
+                )
+            with right_col:
+                x_max = st.number_input(
+                    "Maximum visible voltage (V)",
+                    value=float(data_vmax),
+                    key="iv_custom_x_max",
+                )
+            if x_min >= x_max:
+                st.warning("The maximum voltage must be greater than the minimum voltage.")
+                x_range = [data_vmin, data_vmax]
+            else:
+                x_range = [float(x_min), float(x_max)]
 
-        # A symmetric-log transform allows positive, negative, and zero current
-        # while displaying small and large magnitudes together. Tooltip values
-        # remain the original currents in amperes.
+        # Plotly does not offer a native symmetric-log axis. Transform y positions for
+        # display, while hover tooltips continue to show the original current in amperes.
         linthresh = 1e-9
 
         def symlog_transform(values):
@@ -654,8 +675,6 @@ elif st.session_state.page == "Predictor":
                 )
             )
 
-        # Add the predicted current as a gold star only after a successful
-        # prediction for the currently selected inputs.
         if result_matches_inputs:
             pred_v = float(result_for_graph["voltage"])
             pred_i = float(result_for_graph["current"])
@@ -668,7 +687,7 @@ elif st.session_state.page == "Predictor":
                     name="Predicted current",
                     marker={
                         "symbol": "star",
-                        "size": 17,
+                        "size": 18,
                         "color": "#ffcc66",
                         "line": {"color": "white", "width": 1.5},
                     },
@@ -682,7 +701,7 @@ elif st.session_state.page == "Predictor":
         fig.add_vline(
             x=float(voltage),
             line_dash="dash",
-            line_width=1.5,
+            line_width=1.3,
             line_color="#9dbcf4",
             annotation_text=f"Selected: {voltage:.4g} V",
             annotation_position="top",
@@ -693,11 +712,8 @@ elif st.session_state.page == "Predictor":
             -1e-7, -1e-8, -1e-9, 0.0, 1e-9, 1e-8, 1e-7,
             1e-6, 1e-5, 1e-4, 0.001, 0.01, 0.1, 1.0,
         ])
-        tick_positions = symlog_transform(tick_currents)
-        tick_labels = [f"{value:.0e}" if value else "0" for value in tick_currents]
-
         fig.update_layout(
-            title="Diode I–V characteristics: forward and reverse regions",
+            title="Diode I–V characteristics",
             template="plotly_dark",
             height=650,
             autosize=True,
@@ -722,8 +738,8 @@ elif st.session_state.page == "Predictor":
             yaxis={
                 "title": "Current (A, symmetric-log scale)",
                 "tickmode": "array",
-                "tickvals": tick_positions,
-                "ticktext": tick_labels,
+                "tickvals": symlog_transform(tick_currents),
+                "ticktext": [f"{value:.0e}" if value else "0" for value in tick_currents],
                 "showgrid": True,
                 "gridcolor": "rgba(82,112,142,0.3)",
                 "zeroline": True,
@@ -733,19 +749,17 @@ elif st.session_state.page == "Predictor":
         )
 
         if not curve_data and not result_matches_inputs:
-            st.info("Select one or more datasets above to display curves. The prediction marker appears after a successful prediction.")
+            st.info(
+                "Select one or more datasets above to display curves. "
+                "The prediction marker appears after a successful prediction."
+            )
 
         st.plotly_chart(
             fig,
             use_container_width=True,
-            config={
-                "scrollZoom": True,
-                "displaylogo": False,
-                "responsive": True,
-            },
+            config={"scrollZoom": True, "displaylogo": False, "responsive": True},
             key="interactive_iv_plot",
         )
-
 
 # ---------- MODEL COMPARISON ----------
 elif st.session_state.page == "Model Comparison":
