@@ -181,15 +181,13 @@ models, model_errors = load_models()
 data = load_data()
 training_data = load_training_data()
 
+
 PAGES = ["Home", "Predictor", "Model Comparison", "Dataset Explorer"]
 
 if "page" not in st.session_state:
     st.session_state.page = "Home"
 
-def go_to(page):
-    st.session_state.page = page
-
-nav_cols = st.columns([1.45, 1, 1.25, 1.25, 1.15], gap="medium")
+nav_cols = st.columns(5)
 
 with nav_cols[0]:
     st.markdown(
@@ -205,15 +203,16 @@ for col, target, label in zip(
     ["⌂ Home", "⚡ Predictor", "◫ Model comparison", "⌁ Dataset"],
 ):
     with col:
-        st.button(
+        if st.button(
             label,
             key=f"topnav_{target}",
             use_container_width=True,
-            on_click=go_to,
-            args=(target,),
-        )
+        ):
+            st.session_state.page = target
+            st.rerun()
 
 page = st.session_state.page
+
 
 
 if model_errors:
