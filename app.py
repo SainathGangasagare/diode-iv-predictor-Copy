@@ -6,7 +6,6 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 
-
 st.set_page_config(
     page_title="DiodeLab AI | I–V Predictor",
     page_icon="⚡",
@@ -396,80 +395,120 @@ elif st.session_state.page == "Predictor":
             "are in the repository."
         )
     else:
-        model_name = st.selectbox("Choose a model", list(models.keys()))
+        # Select the device/material FIRST. Only then show compatible models.
+        device_type = st.selectbox(
+            "1. Choose device / material",
+            [
+                "1N4004",
+                "Silicon",
+                "Silicon carbide (SiC)",
+                "Gallium nitride (GaN)",
+            ],
+            key="predict_device_type",
+        )
 
-        # No min_value/max_value: the user can enter any voltage.
-        # Predictions outside the training range are extrapolations and may be unreliable.
+        device = device_type
+        device_rows = pd.DataFrame()
+
+        if device_type == "1N4004":
+            compatible_models = [
+                name for name in ("Random Forest", "Tuned SVR")
+                if name in models
+            ]
+            device = "1N4004"
+        else:
+            material_name = {
+                "Silicon": "silicon",
+                "Silicon carbide (SiC)": "silicon carbide",
+                "Gallium nitride (GaN)": "gallium nitride",
+            }[device_type]
+            device_rows_for_material = training_data[
+                training_data["material"].astype(str).str.strip().str.lower().eq(material_name)
+            ] if not training_data.empty else pd.DataFrame()
+
+            device_options = sorted(
+                device_rows_for_material["device"].dropna().astype(str).unique().tolist()
+            ) if not device_rows_for_material.empty else []
+
+            if device_options:
+                device = st.selectbox(
+                    "2. Choose device",
+                    device_options,
+                    key=f"predict_device_{device_type}",
+                )
+                device_rows = device_rows_for_material[
+                    device_rows_for_material["device"].astype(str).eq(device)
+                ].copy()
+            else:
+                device = None
+                st.warning(f"No {device_type} devices were found in the combined dataset.")
+
+            model_by_material = {
+                "Silicon": ["Silicon multi-temperature SVR", "Silicon SVR"],
+                "Silicon carbide (SiC)": ["SiC multi-temperature SVR", "SiC SVR"],
+                "Gallium nitride (GaN)": ["GaN multi-temperature SVR"],
+            }
+            compatible_models = [
+                name for name in model_by_material[device_type] if name in models
+            ]
+
+        # Model selection is deliberately BELOW device/material selection.
+        if compatible_models:
+            model_name = st.selectbox(
+                "2. Choose model" if device_type == "1N4004" else "3. Choose model",
+                compatible_models,
+                key=f"predict_model_{device_type}",
+            )
+        else:
+            model_name = None
+            st.error("No compatible trained model is available for this device/material.")
+
+        # Temperature is relevant to material-specific models, not the original 1N4004 models.
+        temperature = 293.0
+        if device_type != "1N4004" and device is not None and not device_rows.empty:
+            available_temperatures = sorted(
+                pd.to_numeric(device_rows["temperature_K"], errors="coerce")
+                .dropna().unique().astype(float).tolist()
+            )
+            if available_temperatures:
+                temperature = st.selectbox(
+                    "4. Choose measured temperature (K)",
+                    available_temperatures,
+                    index=min(range(len(available_temperatures)), key=lambda i: abs(available_temperatures[i] - 293.0)),
+                    key=f"predict_temperature_{device_type}_{device}",
+                )
+            else:
+                st.warning("No measured temperatures were found for this device.")
+
+        # No min_value/max_value: voltage is intentionally unrestricted.
         voltage = st.number_input(
-            "Measured voltage (V)",
+            "5. Enter voltage (V)",
             value=0.70,
             step=0.005,
             format="%.5f",
+            key="predict_voltage",
         )
 
-       
-        
-        if model_name in ["Silicon SVR", "Silicon multi-temperature SVR"]:
-            device_options = [
-                "1N11877R",
-                "1N1190",
-                "1N3913",
-                "45L120",
-                "BYX661000",
-                "BZW12360",
-                "BZW1336",
-                "BZW1347",
-                "MBR4035",
+        # Warn when voltage is outside the selected device's recorded range.
+        if device_type != "1N4004" and device is not None and not device_rows.empty:
+            at_temperature = device_rows[
+                pd.to_numeric(device_rows["temperature_K"], errors="coerce").eq(float(temperature))
             ]
-        elif model_name in ["SiC SVR", "SiC multi-temperature SVR"]:
-            device_options = [
-                "C6D20065A",
-                "FFSH3065B",
-                "FFSH3065B-F085",
-                "STPSC12065DY",
-            ]
-        elif model_name == "GaN multi-temperature SVR":
-            device_options = ["Au/Ni/n-GaN Schottky diode"]
-        else:
-            device_options = [
-                "1N4004",
-                "Generic silicon",
-                "Silicon carbide",
-                "GaN Schottky",
-            ]
-
-        device = st.selectbox("Device", device_options)
-
-
-        temperature = st.number_input(
-            "Temperature (K)",
-            min_value=1.0,
-            max_value=500.0,
-            value=293.0,
-            step=1.0,
-        )
-        
-        if model_name in ["Silicon SVR", "SiC SVR"]:
-            if not 77.0 <= temperature <= 293.0:
-                st.warning(
-                    "The legacy SVR models were trained on data from "
-                    "77 K to 293 K. Predictions outside this "
-                    "temperature range may be unreliable."
+            if not at_temperature.empty:
+                measured_min = float(at_temperature["voltage_V"].min())
+                measured_max = float(at_temperature["voltage_V"].max())
+                st.caption(
+                    f"Recorded voltage range for {device} at {temperature:g} K: "
+                    f"{measured_min:.5g} to {measured_max:.5g} V."
                 )
-        elif model_name in ["Silicon multi-temperature SVR", "SiC multi-temperature SVR", "GaN multi-temperature SVR"] and not training_data.empty:
-            material_name = "silicon" if model_name.startswith("Silicon") else ("silicon carbide" if model_name.startswith("SiC") else "gallium nitride")
-            material_rows = training_data[training_data["material"].astype(str).str.strip().str.lower().eq(material_name)]
-            if not material_rows.empty:
-                tmin = float(pd.to_numeric(material_rows["temperature_K"], errors="coerce").min())
-                tmax = float(pd.to_numeric(material_rows["temperature_K"], errors="coerce").max())
-                if temperature < tmin or temperature > tmax:
-                    st.warning(f"The selected temperature is outside this material's recorded range ({tmin:g}–{tmax:g} K); predictions may be unreliable.")
+                if voltage < measured_min or voltage > measured_max:
+                    st.warning("The voltage is outside this device's recorded range; the prediction may be unreliable.")
+        elif device_type == "1N4004" and valid_data and (voltage < vmin or voltage > vmax):
+            st.warning(
+                f"The voltage is outside the original 1N4004 measured range ({vmin:.5g} to {vmax:.5g} V). "
+                "The prediction is an extrapolation and may be unreliable."
+            )
 
-
-        
-        
-        
-        
         if st.button("Predict current", key="predict_button"):
             # Clear the previous result before attempting a new prediction.
             st.session_state.pop("last_prediction", None)
