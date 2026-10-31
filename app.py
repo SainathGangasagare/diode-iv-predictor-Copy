@@ -193,6 +193,18 @@ def material_label(dataset_name, frame):
     return dataset_name
 
 
+def get_1n4004_measured_voltage_range(voltage):
+    """Use the matching 1N4004 forward- or reverse-bias measurements."""
+    dataset_key = "1N4004 reverse bias" if voltage < 0 else "1N4004 forward bias"
+    frame = read_dataset_csv(DATASET_FILES[dataset_key])
+    v_col, _ = voltage_current_columns(frame)
+    if v_col is not None and not frame.empty:
+        values = pd.to_numeric(frame[v_col], errors="coerce").dropna()
+        if not values.empty:
+            return float(values.min()), float(values.max()), dataset_key
+    return None, None, dataset_key
+
+
 models, model_errors = load_models()
 data = load_data()
 training_data = load_training_data()
@@ -503,11 +515,22 @@ elif st.session_state.page == "Predictor":
                 )
                 if voltage < measured_min or voltage > measured_max:
                     st.warning("The voltage is outside this device's recorded range; the prediction may be unreliable.")
-        elif device_type == "1N4004" and valid_data and (voltage < vmin or voltage > vmax):
-            st.warning(
-                f"The voltage is outside the original 1N4004 measured range ({vmin:.5g} to {vmax:.5g} V). "
-                "The prediction is an extrapolation and may be unreliable."
-            )
+        elif device_type == "1N4004":
+            range_min, range_max, range_dataset = get_1n4004_measured_voltage_range(voltage)
+            if range_min is not None and (voltage < range_min or voltage > range_max):
+                st.warning(
+                    f"The voltage is outside the 1N4004 {range_dataset} measured range "
+                    f"({range_min:.5g} to {range_max:.5g} V). "
+                    "The prediction may be unreliable."
+                )
+            elif range_min is None:
+                st.warning(f"Could not load the matching 1N4004 {range_dataset} voltage range.")
+            if voltage < 0:
+                st.info(
+                    "This input is within the reverse-bias measurement range, but the selected "
+                    "1N4004 prediction model was trained on forward-bias data only. Its reverse-current "
+                    "prediction is not validated."
+                )
 
         if st.button("Predict current", key="predict_button"):
             # Clear the previous result before attempting a new prediction.
@@ -626,14 +649,22 @@ elif st.session_state.page == "Predictor":
                     "device and temperature, but the estimate is not "
                     "a guaranteed physical measurement."
                 )
-            elif valid_data and not (
-                vmin <= result["voltage"] <= vmax
-            ):
-                st.warning(
-                    f'{result["voltage"]:.5f} V is outside the original '
-                    f"1N4004 measured range ({vmin:.5f}–{vmax:.5f} V). "
-                    "Treat this prediction as an extrapolation."
-                )
+            elif result["device"] == "1N4004":
+                result_min, result_max, result_dataset = get_1n4004_measured_voltage_range(result["voltage"])
+                if result_min is not None and not (result_min <= result["voltage"] <= result_max):
+                    st.warning(
+                        f'{result["voltage"]:.5f} V is outside the 1N4004 {result_dataset} '
+                        f"measured range ({result_min:.5f}–{result_max:.5f} V). "
+                        "Treat this prediction as an extrapolation."
+                    )
+                elif result["voltage"] < 0:
+                    st.warning(
+                        "Although this voltage is inside the reverse-bias measured range, "
+                        "the selected model was trained on forward-bias data only. "
+                        "Its reverse-current prediction is not validated."
+                    )
+                else:
+                    st.info("This is a model estimate, not a guaranteed physical measurement.")
             else:
                 st.info(
                     "This is a model estimate, not a guaranteed "
